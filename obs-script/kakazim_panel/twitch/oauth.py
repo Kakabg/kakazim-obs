@@ -14,10 +14,11 @@ AUTORIZACAO_URL = "https://id.twitch.tv/oauth2/authorize"
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 USERS_URL = "https://api.twitch.tv/helix/users"
 
-# O token e sempre do proprio streamer lendo o proprio canal, entao nao
-# precisa de user:bot (isso so e exigido pra contas de bot separadas do
-# broadcaster/moderador).
-ESCOPOS = "channel:read:subscriptions moderator:read:followers user:read:chat"
+# O token e sempre do proprio streamer lendo/escrevendo no proprio canal,
+# entao nao precisa de user:bot (isso so e exigido pra contas de bot separadas
+# do broadcaster/moderador). user:write:chat e pro botao "Enviar Mensagem" do
+# Stream Deck (kakazim-live) mandar mensagem via Helix.
+ESCOPOS = "channel:read:subscriptions moderator:read:followers user:read:chat user:write:chat"
 
 MARGEM_EXPIRACAO_MS = 2 * 60 * 1000
 

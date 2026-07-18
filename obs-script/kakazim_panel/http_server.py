@@ -17,6 +17,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import config, hub
+from .twitch import helix as twitch_helix
 from .twitch import oauth as twitch_oauth
 
 ARQUIVOS_ESTATICOS = {
@@ -58,6 +59,8 @@ class Handler(BaseHTTPRequestHandler):
         caminho = urlparse(self.path).path
         if caminho == "/api/kick/seguidores":
             self._definir_seguidores_kick()
+        elif caminho == "/api/twitch/enviar-mensagem":
+            self._enviar_mensagem_twitch()
         else:
             self._responder_404()
 
@@ -138,6 +141,27 @@ class Handler(BaseHTTPRequestHandler):
 
         hub.definir_total_seguidores_kick(total)
         self._responder_json({"ok": True, "total": total})
+
+    def _enviar_mensagem_twitch(self):
+        tamanho = int(self.headers.get("Content-Length", 0) or 0)
+        bruto = self.rfile.read(tamanho) if tamanho else b""
+
+        try:
+            corpo = json.loads(bruto or b"{}")
+            mensagem = (corpo.get("message") or "").strip()
+            if not mensagem:
+                raise ValueError("mensagem vazia")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            self._responder_json({"erro": 'Envie { "message": "<texto>" }.'}, status=400)
+            return
+
+        try:
+            twitch_helix.enviar_mensagem_chat(mensagem)
+        except Exception as erro:
+            self._responder_json({"erro": f"Falha ao enviar mensagem no chat da Twitch: {erro}"}, status=502)
+            return
+
+        self._responder_json({"ok": True})
 
     # --- helpers de resposta ---
 

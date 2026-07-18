@@ -45,3 +45,23 @@ def buscar_total_seguidores():
 def buscar_total_inscritos():
     corpo = _chamar_helix("subscriptions", {"broadcaster_id": broadcaster_user_id(), "first": 1})
     return (corpo or {}).get("total", 0)
+
+
+def enviar_mensagem_chat(mensagem):
+    """Manda mensagem no chat da propria live, como o streamer autenticado
+    (broadcaster_id == sender_id) - exige o escopo user:write:chat."""
+    id_ = broadcaster_user_id()
+    access_token = obter_access_token_valido()
+    headers = {
+        "Authorization": f"Bearer {access_token}",
+        "Client-Id": config.obter("twitch_client_id"),
+    }
+    dados_json = {
+        "broadcaster_id": id_,
+        "sender_id": id_,
+        "message": mensagem,
+    }
+    try:
+        return requisitar(f"{HELIX_BASE}/chat/messages", method="POST", headers=headers, dados_json=dados_json)
+    except ErroHttp as erro:
+        raise RuntimeError(f"Falha ao enviar mensagem no chat da Twitch ({erro.status}): {erro.corpo}") from erro
