@@ -1,57 +1,110 @@
-"""Persistencia local em JSON - porta de server/store.js (projeto Node original).
+"""Persistencia local - porta de server/store.js (projeto Node original).
 
-Guarda: tokens da Twitch, total de seguidores da Kick (cadastro manual + os
-incrementos ao vivo) e os buffers de feed de atividade / chat, pra sobreviver a
-um reload do Browser Source no OBS ou a um "Reload Scripts".
+Guarda em JSON (store.json): tokens da Twitch, total de seguidores da Kick
+(cadastro manual + os incrementos ao vivo) e o cursor do relay de eventos da
+Kick. Guarda em SQLite (painel.db): o historico completo de atividades e chat
+- crescem sem limite (nao e mais um buffer circular capado), pra dar um
+historico persistente de verdade e paginavel em vez de um feed que reseta
+sempre que o script do OBS reinicia.
+
+Atividades ficam pra sempre. Chat tem retencao de RETENCAO_CHAT_HORAS (poda
+periodica chamada por hub.py) - mensagem de chat e volume alto e baixo valor
+historico depois de um tempo, diferente de atividade (sub/follow), que o
+usuario pediu explicitamente pra nunca apagar.
 """
 
 import copy
 import json
 import os
+import sqlite3
 import threading
 import time
 from pathlib import Path
 
 from . import config
 
-CAP_ATIVIDADES = 200
-CAP_CHAT = 200
+# Só o Chat tem poda automática por idade - Atividade recente guarda tudo pra
+# sempre, por pedido explícito (mensagem de chat é alto volume e baixo valor
+# histórico depois de um tempo; atividade tipo sub/follow não).
+RETENCAO_CHAT_HORAS = 48
+
+_ESTADO_TOKEN_TWITCH_PADRAO = {
+    "accessToken": None,
+    "refreshToken": None,
+    "expiresAt": None,
+    "userId": None,
+    "login": None,
+}
+
+PAPEIS_TWITCH = ("streamer", "bot")
 
 _ESTADO_PADRAO = {
     "twitch": {
-        "accessToken": None,
-        "refreshToken": None,
-        "expiresAt": None,
-        "userId": None,
-        "login": None,
+        "streamer": dict(_ESTADO_TOKEN_TWITCH_PADRAO),
+        "bot": dict(_ESTADO_TOKEN_TWITCH_PADRAO),
     },
     "kick": {
         "followerTotal": None,
         "followerSeedEm": None,
+        # Maior id de evento (banco/db.js: eventos_painel, no kakazim-bot) ja
+        # recebido do relay - mandado de volta como ?desde= na reconexao pra
+        # nao perder eventos que chegaram enquanto o painel estava
+        # desconectado (ver kick/relay_client.py).
+        "ultimoEventoRelayId": None,
     },
-    "atividades": [],
-    "chat": [],
 }
 
 _lock = threading.Lock()
 _estado = None
+_conexao_db = None
 
 
-def _arquivo():
+def _arquivo_json():
     return Path(config.diretorio_base) / "data" / "store.json"
 
 
-def _carregar():
+def _arquivo_db():
+    return Path(config.diretorio_base) / "data" / "painel.db"
+
+
+def _migrar_estado_twitch(bruto_twitch):
+    """Antes desta mudanca, estado["twitch"] guardava direto um unico token
+    (do streamer) num dict achatado. Agora vira um token por papel
+    (streamer/bot), pra dar espaco pra conta de bot separada - isso migra o
+    formato antigo na primeira carga sem perder o token ja autorizado."""
+    padrao = {papel: dict(_ESTADO_TOKEN_TWITCH_PADRAO) for papel in PAPEIS_TWITCH}
+    if not isinstance(bruto_twitch, dict):
+        return padrao
+
+    if "accessToken" in bruto_twitch:
+        padrao["streamer"] = bruto_twitch
+        return padrao
+
+    for papel in PAPEIS_TWITCH:
+        if papel in bruto_twitch:
+            padrao[papel] = bruto_twitch[papel]
+    return padrao
+
+
+def _carregar_bruto():
     try:
-        with open(_arquivo(), "r", encoding="utf-8") as f:
-            bruto = json.load(f)
+        with open(_arquivo_json(), "r", encoding="utf-8") as f:
+            return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError, OSError):
-        return copy.deepcopy(_ESTADO_PADRAO)
+        return {}
+
+
+def _carregar():
+    bruto = _carregar_bruto()
 
     estado = copy.deepcopy(_ESTADO_PADRAO)
     for chave in estado:
         if chave in bruto:
             estado[chave] = bruto[chave]
+    estado["twitch"] = _migrar_estado_twitch(bruto.get("twitch"))
+    # kick pode vir de um store.json anterior a essa mudanca, sem
+    # ultimoEventoRelayId - preenche o que faltar sem perder followerTotal.
+    estado["kick"] = {**_ESTADO_PADRAO["kick"], **estado.get("kick", {})}
     return estado
 
 
@@ -65,7 +118,7 @@ def _obter_estado():
 def _salvar():
     """Escrita atomica (escreve num .tmp e renomeia) pra nao corromper o
     store.json se o processo morrer/OBS fechar no meio de uma gravacao."""
-    caminho = _arquivo()
+    caminho = _arquivo_json()
     caminho.parent.mkdir(parents=True, exist_ok=True)
     tmp = caminho.parent / (caminho.name + ".tmp")
     with open(tmp, "w", encoding="utf-8") as f:
@@ -73,10 +126,12 @@ def _salvar():
     os.replace(tmp, caminho)
 
 
-def salvar_tokens_twitch(access_token, refresh_token, expires_at, user_id, login):
+def salvar_tokens_twitch(access_token, refresh_token, expires_at, user_id, login, papel="streamer"):
+    if papel not in PAPEIS_TWITCH:
+        raise ValueError(f"Papel de token Twitch inválido: {papel}")
     with _lock:
         estado = _obter_estado()
-        estado["twitch"] = {
+        estado["twitch"][papel] = {
             "accessToken": access_token,
             "refreshToken": refresh_token,
             "expiresAt": expires_at,
@@ -86,9 +141,11 @@ def salvar_tokens_twitch(access_token, refresh_token, expires_at, user_id, login
         _salvar()
 
 
-def buscar_tokens_twitch():
+def buscar_tokens_twitch(papel="streamer"):
+    if papel not in PAPEIS_TWITCH:
+        raise ValueError(f"Papel de token Twitch inválido: {papel}")
     with _lock:
-        return dict(_obter_estado()["twitch"])
+        return dict(_obter_estado()["twitch"][papel])
 
 
 def definir_total_seguidores_kick(total):
@@ -114,29 +171,214 @@ def buscar_kick():
         return dict(_obter_estado()["kick"])
 
 
-def adicionar_atividade(item):
+def definir_ultimo_evento_relay_kick(id_evento):
     with _lock:
         estado = _obter_estado()
-        estado["atividades"].append(item)
-        if len(estado["atividades"]) > CAP_ATIVIDADES:
-            estado["atividades"] = estado["atividades"][-CAP_ATIVIDADES:]
+        estado["kick"]["ultimoEventoRelayId"] = id_evento
         _salvar()
 
 
-def listar_atividades():
+def buscar_ultimo_evento_relay_kick():
     with _lock:
-        return list(_obter_estado()["atividades"])
+        return _obter_estado()["kick"]["ultimoEventoRelayId"]
+
+
+# --- historico (SQLite, sem limite - ver docstring do modulo) ---
+
+
+def _obter_conexao():
+    global _conexao_db
+    if _conexao_db is not None:
+        return _conexao_db
+
+    caminho = _arquivo_db()
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    conexao = sqlite3.connect(str(caminho), check_same_thread=False)
+    conexao.row_factory = sqlite3.Row
+    conexao.execute("PRAGMA journal_mode = WAL")
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS atividades (
+            id TEXT PRIMARY KEY,
+            timestamp INTEGER NOT NULL,
+            plataforma TEXT,
+            tipo TEXT,
+            usuario TEXT,
+            detalhe TEXT
+        )
+        """
+    )
+    conexao.execute("CREATE INDEX IF NOT EXISTS idx_atividades_timestamp ON atividades (timestamp)")
+    conexao.execute(
+        """
+        CREATE TABLE IF NOT EXISTS chat (
+            id TEXT PRIMARY KEY,
+            timestamp INTEGER NOT NULL,
+            plataforma TEXT,
+            usuario TEXT,
+            mensagem TEXT,
+            cor TEXT,
+            origem TEXT
+        )
+        """
+    )
+    conexao.execute("CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON chat (timestamp)")
+    conexao.commit()
+
+    _migrar_historico_legado(conexao)
+
+    _conexao_db = conexao
+    return _conexao_db
+
+
+def _migrar_historico_legado(conexao):
+    """Antes desta mudanca, atividades/chat viviam num array capado (200
+    itens) dentro do proprio store.json. Se essa chave ainda existir num
+    store.json antigo e as tabelas novas estiverem vazias, importa esse
+    historico uma unica vez em vez de simplesmente descarta-lo na migracao."""
+    bruto = _carregar_bruto()
+
+    if conexao.execute("SELECT COUNT(*) FROM atividades").fetchone()[0] == 0:
+        for item in bruto.get("atividades") or []:
+            _inserir_atividade(conexao, item)
+
+    if conexao.execute("SELECT COUNT(*) FROM chat").fetchone()[0] == 0:
+        for item in bruto.get("chat") or []:
+            _inserir_chat(conexao, item)
+
+    conexao.commit()
+
+
+def _inserir_atividade(conexao, item):
+    conexao.execute(
+        """
+        INSERT OR REPLACE INTO atividades (id, timestamp, plataforma, tipo, usuario, detalhe)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            item["id"],
+            item["timestamp"],
+            item.get("plataforma"),
+            item.get("tipo"),
+            item.get("usuario"),
+            item.get("detalhe"),
+        ),
+    )
+
+
+def _inserir_chat(conexao, item):
+    conexao.execute(
+        """
+        INSERT OR REPLACE INTO chat (id, timestamp, plataforma, usuario, mensagem, cor, origem)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            item["id"],
+            item["timestamp"],
+            item.get("plataforma"),
+            item.get("usuario"),
+            item.get("mensagem"),
+            item.get("cor"),
+            item.get("origem"),
+        ),
+    )
+
+
+def _linha_para_atividade(linha):
+    return {
+        "id": linha["id"],
+        "timestamp": linha["timestamp"],
+        "plataforma": linha["plataforma"],
+        "tipo": linha["tipo"],
+        "usuario": linha["usuario"],
+        "detalhe": linha["detalhe"],
+    }
+
+
+def _linha_para_chat(linha):
+    return {
+        "id": linha["id"],
+        "timestamp": linha["timestamp"],
+        "plataforma": linha["plataforma"],
+        "usuario": linha["usuario"],
+        "mensagem": linha["mensagem"],
+        "cor": linha["cor"],
+        "origem": linha["origem"],
+    }
+
+
+def adicionar_atividade(item):
+    with _lock:
+        conexao = _obter_conexao()
+        _inserir_atividade(conexao, item)
+        conexao.commit()
 
 
 def adicionar_chat(item):
     with _lock:
-        estado = _obter_estado()
-        estado["chat"].append(item)
-        if len(estado["chat"]) > CAP_CHAT:
-            estado["chat"] = estado["chat"][-CAP_CHAT:]
-        _salvar()
+        conexao = _obter_conexao()
+        _inserir_chat(conexao, item)
+        conexao.commit()
 
 
-def listar_chat():
+def listar_atividades_recentes(limite=50):
+    """Os `limite` itens mais novos, em ordem crescente (mais antigo
+    primeiro) - pronto pro snapshot inicial do frontend (prependAtividade)."""
     with _lock:
-        return list(_obter_estado()["chat"])
+        conexao = _obter_conexao()
+        linhas = conexao.execute(
+            "SELECT * FROM atividades ORDER BY timestamp DESC LIMIT ?", (limite,)
+        ).fetchall()
+    return [_linha_para_atividade(linha) for linha in reversed(linhas)]
+
+
+def listar_atividades_pagina(antes_de=None, limite=50):
+    """Pagina de itens mais antigos que `antes_de` (timestamp em ms), em
+    ordem decrescente - usado pelo "carregar mais" no scroll do feed."""
+    with _lock:
+        conexao = _obter_conexao()
+        if antes_de is None:
+            linhas = conexao.execute(
+                "SELECT * FROM atividades ORDER BY timestamp DESC LIMIT ?", (limite,)
+            ).fetchall()
+        else:
+            linhas = conexao.execute(
+                "SELECT * FROM atividades WHERE timestamp < ? ORDER BY timestamp DESC LIMIT ?",
+                (antes_de, limite),
+            ).fetchall()
+    return [_linha_para_atividade(linha) for linha in linhas]
+
+
+def listar_chat_recentes(limite=50):
+    with _lock:
+        conexao = _obter_conexao()
+        linhas = conexao.execute(
+            "SELECT * FROM chat ORDER BY timestamp DESC LIMIT ?", (limite,)
+        ).fetchall()
+    return [_linha_para_chat(linha) for linha in reversed(linhas)]
+
+
+def listar_chat_pagina(antes_de=None, limite=50):
+    with _lock:
+        conexao = _obter_conexao()
+        if antes_de is None:
+            linhas = conexao.execute(
+                "SELECT * FROM chat ORDER BY timestamp DESC LIMIT ?", (limite,)
+            ).fetchall()
+        else:
+            linhas = conexao.execute(
+                "SELECT * FROM chat WHERE timestamp < ? ORDER BY timestamp DESC LIMIT ?",
+                (antes_de, limite),
+            ).fetchall()
+    return [_linha_para_chat(linha) for linha in linhas]
+
+
+def podar_chat_antigo(retencao_horas=RETENCAO_CHAT_HORAS):
+    """Apaga mensagens de chat mais velhas que `retencao_horas`. Não mexe em
+    atividades - essas ficam pra sempre (ver docstring do módulo)."""
+    corte = int(time.time() * 1000) - retencao_horas * 60 * 60 * 1000
+    with _lock:
+        conexao = _obter_conexao()
+        cursor = conexao.execute("DELETE FROM chat WHERE timestamp < ?", (corte,))
+        conexao.commit()
+    return cursor.rowcount

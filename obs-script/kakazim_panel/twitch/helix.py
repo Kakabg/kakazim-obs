@@ -48,17 +48,25 @@ def buscar_total_inscritos():
 
 
 def enviar_mensagem_chat(mensagem):
-    """Manda mensagem no chat da propria live, como o streamer autenticado
-    (broadcaster_id == sender_id) - exige o escopo user:write:chat."""
-    id_ = broadcaster_user_id()
-    access_token = obter_access_token_valido()
+    """Manda mensagem no chat do streamer autenticado como a conta bot
+    separada (kakazimbot, ja moderadora do canal) - broadcaster_id e' do
+    streamer, sender_id e' do bot. Exige token do bot com escopos
+    user:write:chat + user:bot (ver /twitch/login?role=bot)."""
+    broadcaster_id = broadcaster_user_id()
+
+    tokens_bot = store.buscar_tokens_twitch("bot")
+    bot_user_id = tokens_bot.get("userId")
+    if not bot_user_id:
+        raise RuntimeError("Twitch (bot) ainda não autorizada. Acesse /twitch/login?role=bot primeiro.")
+
+    access_token = obter_access_token_valido(papel="bot")
     headers = {
         "Authorization": f"Bearer {access_token}",
         "Client-Id": config.obter("twitch_client_id"),
     }
     dados_json = {
-        "broadcaster_id": id_,
-        "sender_id": id_,
+        "broadcaster_id": broadcaster_id,
+        "sender_id": bot_user_id,
         "message": mensagem,
     }
     try:

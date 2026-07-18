@@ -196,6 +196,27 @@ body {
 
 .item-detalhe { color: var(--texto-fraco); }
 
+.item-tempo {
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--texto-fraco);
+  font-size: 0.75rem;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.badge-bot {
+  flex-shrink: 0;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--border);
+  color: var(--texto-fraco);
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
 .item-vazio {
   color: var(--texto-fraco);
   font-style: italic;

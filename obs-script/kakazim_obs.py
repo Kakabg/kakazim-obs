@@ -52,7 +52,9 @@ def script_description():
         "<p>Sobe um servidor local com estatísticas, feed de atividade e chat "
         "unificado de Kick + Twitch, pra usar como Browser Source no OBS.</p>"
         "<p>Preencha as credenciais abaixo, aplique, clique em "
-        '"Autorizar Twitch" uma vez e depois adicione '
+        '"Autorizar Twitch" (conta principal, leitura/stats) e em '
+        '"Autorizar Twitch (bot)" (conta separada que manda mensagem no chat) '
+        "uma vez cada e depois adicione "
         "<code>http://localhost:&lt;porta&gt;</code> como Browser Source.</p>"
         "<p>Detalhes e passos completos no README.md da pasta deste script.</p>"
     )
@@ -87,6 +89,20 @@ def script_properties():
     )
     obs.obs_property_button_set_type(botao_login_twitch, obs.OBS_BUTTON_URL)
     obs.obs_property_button_set_url(botao_login_twitch, f"http://localhost:{porta_atual}/twitch/login")
+
+    botao_login_twitch_bot = obs.obs_properties_add_button(
+        props, "abrir_twitch_login_bot", "🤖 Autorizar Twitch (bot, abre no navegador)", lambda p, pr: True
+    )
+    obs.obs_property_button_set_type(botao_login_twitch_bot, obs.OBS_BUTTON_URL)
+    obs.obs_property_button_set_url(botao_login_twitch_bot, f"http://localhost:{porta_atual}/twitch/login?role=bot")
+    obs.obs_property_set_long_description(
+        botao_login_twitch_bot,
+        "Autoriza a conta separada da Twitch usada só pra mandar mensagem no chat (ex: kakazimbot, já "
+        "moderadora do seu canal) - o botão de cima continua sendo só pra sua conta principal (leitura/stats). "
+        "Fique logado como a conta bot no navegador ANTES de clicar: quem decide qual conta autoriza é a sessão "
+        "do navegador na tela de consentimento da Twitch, não este botão - use uma aba anônima ou outro perfil "
+        "do navegador se já estiver logado como você mesmo.",
+    )
 
     prop_seed = obs.obs_properties_add_int(
         props, "kick_seguidores_atual", "Kick: definir/resetar total de seguidores", 0, 100_000_000, 1

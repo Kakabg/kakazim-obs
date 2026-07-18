@@ -19,6 +19,12 @@ from .twitch.eventsub import ClienteEventSub
 INTERVALO_VIEWERS_S = 15
 INTERVALO_TOTAIS_S = 60
 INTERVALO_FALHA_MINIMO_S = 45
+INTERVALO_PODA_CHAT_S = 60 * 60
+
+# Quantos itens de historico mandar no snapshot inicial (SSE "message" tipo
+# snapshot) - o resto do historico completo (agora sem limite, ver store.py)
+# fica disponivel sob demanda via GET /api/atividades e /api/chat, paginado.
+TAMANHO_SNAPSHOT_HISTORICO = 50
 
 _lock = threading.RLock()
 
@@ -70,7 +76,7 @@ def _registrar_atividade(item):
     completo = {"id": str(uuid.uuid4()), "timestamp": int(time.time() * 1000), **item}
     store.adicionar_atividade(completo)
     with _lock:
-        _estado["atividades"] = store.listar_atividades()
+        _estado["atividades"] = store.listar_atividades_recentes(TAMANHO_SNAPSHOT_HISTORICO)
     _transmitir({"tipo": "atividade", "item": completo})
 
 
@@ -78,7 +84,7 @@ def _registrar_chat(item):
     completo = {"id": str(uuid.uuid4()), "timestamp": int(time.time() * 1000), **item}
     store.adicionar_chat(completo)
     with _lock:
-        _estado["chat"] = store.listar_chat()
+        _estado["chat"] = store.listar_chat_recentes(TAMANHO_SNAPSHOT_HISTORICO)
     _transmitir({"tipo": "chat", "item": completo})
 
 
@@ -207,6 +213,11 @@ def _tratar_evento_kick(tipo, payload):
                 "usuario": sender.get("username"),
                 "mensagem": payload.get("content", ""),
                 "cor": identidade.get("username_color"),
+                # "bot_local" quando é o evento sintético que o kakazim-bot gera
+                # ao enviar mensagem via /api/kick/enviar-mensagem (a Kick não
+                # dispara chat.message.sent pra mensagens do próprio app/bot) -
+                # ausente/None pra mensagem real de espectador.
+                "origem": identidade.get("origem"),
             }
         )
 
@@ -245,6 +256,21 @@ def _iniciar_automacoes():
     _monitor_cs2.iniciar()
 
 
+# --- manutencao ---
+
+def _podar_chat():
+    """Só o Chat tem retenção por idade (RETENCAO_CHAT_HORAS em store.py) -
+    Atividade recente guarda tudo pra sempre, por pedido explícito."""
+    apagadas = store.podar_chat_antigo()
+    if apagadas > 0:
+        with _lock:
+            _estado["chat"] = store.listar_chat_recentes(TAMANHO_SNAPSHOT_HISTORICO)
+
+
+def _iniciar_manutencao():
+    _iniciar_loop_periodico(_podar_chat, INTERVALO_PODA_CHAT_S, "poda-chat")
+
+
 # --- helper de polling periodico ---
 
 def _iniciar_loop_periodico(func, intervalo_s, nome):
@@ -273,11 +299,25 @@ def _iniciar_loop_periodico(func, intervalo_s, nome):
 
 # --- ciclo de vida (chamado por kakazim_obs.py / testar_localmente.py) ---
 
+def _hidratar_historico():
+    """_estado["atividades"]/["chat"] antes ficavam [] até o primeiro evento
+    novo chegar (só _registrar_atividade/_registrar_chat os populavam) - um
+    cliente que pedisse o snapshot logo depois de um restart do script/OBS
+    via um histórico vazio mesmo com tudo intacto no banco. Carrega direto do
+    store assim que o hub sobe, então o snapshot já reflete o histórico real
+    mesmo antes de qualquer evento novo acontecer."""
+    with _lock:
+        _estado["atividades"] = store.listar_atividades_recentes(TAMANHO_SNAPSHOT_HISTORICO)
+        _estado["chat"] = store.listar_chat_recentes(TAMANHO_SNAPSHOT_HISTORICO)
+
+
 def iniciar():
     _parar_geral.clear()
+    _hidratar_historico()
     _iniciar_twitch()
     _iniciar_kick()
     _iniciar_automacoes()
+    _iniciar_manutencao()
 
 
 def parar():

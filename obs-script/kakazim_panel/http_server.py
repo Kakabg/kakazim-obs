@@ -16,7 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import config, hub
+from . import config, hub, store
 from .twitch import helix as twitch_helix
 from .twitch import oauth as twitch_oauth
 
@@ -40,7 +40,8 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
     def do_GET(self):
-        caminho = urlparse(self.path).path
+        partes = urlparse(self.path)
+        caminho = partes.path
 
         if caminho in ARQUIVOS_ESTATICOS:
             self._servir_estatico(ARQUIVOS_ESTATICOS[caminho])
@@ -48,8 +49,12 @@ class Handler(BaseHTTPRequestHandler):
             self._servir_sse()
         elif caminho == "/api/state":
             self._responder_json(hub.obter_estado())
+        elif caminho == "/api/atividades":
+            self._listar_historico(store.listar_atividades_pagina, parse_qs(partes.query))
+        elif caminho == "/api/chat":
+            self._listar_historico(store.listar_chat_pagina, parse_qs(partes.query))
         elif caminho == "/twitch/login":
-            self._redirecionar(twitch_oauth.construir_url_autorizacao())
+            self._twitch_login(parse_qs(partes.query))
         elif caminho == "/twitch/callback":
             self._twitch_callback()
         else:
@@ -102,6 +107,31 @@ class Handler(BaseHTTPRequestHandler):
         finally:
             hub.desregistrar_cliente_sse(fila)
 
+    # Paginação do histórico (Atividade recente / Chat) pra "carregar mais" no
+    # scroll do frontend - o snapshot inicial (/api/state, /events) só traz os
+    # últimos TAMANHO_SNAPSHOT_HISTORICO itens (ver hub.py), o resto do
+    # histórico completo (sem limite, ver store.py) vive aqui.
+    def _listar_historico(self, funcao_pagina, query):
+        antes_bruto = query.get("antes", [None])[0]
+        limite_bruto = query.get("limite", [None])[0]
+
+        try:
+            antes_de = int(antes_bruto) if antes_bruto else None
+            limite = min(int(limite_bruto), 200) if limite_bruto else 50
+        except (TypeError, ValueError):
+            self._responder_json({"erro": "Parâmetros antes/limite inválidos."}, status=400)
+            return
+
+        itens = funcao_pagina(antes_de=antes_de, limite=limite)
+        self._responder_json({"itens": itens})
+
+    def _twitch_login(self, query):
+        papel = (query.get("role") or ["streamer"])[0]
+        if papel not in store.PAPEIS_TWITCH:
+            self._responder_texto("Parâmetro role inválido (use streamer ou bot).", status=400)
+            return
+        self._redirecionar(twitch_oauth.construir_url_autorizacao(papel=papel))
+
     def _twitch_callback(self):
         query = parse_qs(urlparse(self.path).query)
         code = query.get("code", [None])[0]
@@ -116,13 +146,14 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         try:
-            usuario = twitch_oauth.trocar_code_por_token(code, state)
+            usuario, papel = twitch_oauth.trocar_code_por_token(code, state)
         except Exception as erro_troca:
             self._responder_texto(f"Falha ao concluir a autorização com a Twitch: {erro_troca}", status=500)
             return
 
+        rotulo_papel = "conta bot" if papel == "bot" else "conta principal"
         self._responder_texto(
-            f"Twitch autorizada: {usuario.get('display_name')}. Pode fechar essa aba - clique em "
+            f"Twitch autorizada ({rotulo_papel}): {usuario.get('display_name')}. Pode fechar essa aba - clique em "
             '"🔄 Reiniciar conexões" nas configurações do script (Tools > Scripts) pra ativar o chat/feed em tempo real.'
         )
 

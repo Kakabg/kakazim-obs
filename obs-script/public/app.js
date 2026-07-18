@@ -1,7 +1,23 @@
-const MAX_ITENS_TELA = 60;
+const MAX_ITENS_TELA_CHAT = 60;
+const LIMIAR_SCROLL_PX = 80;
+const INTERVALO_ATUALIZACAO_TEMPO_MS = 30000;
 
 function formatarNumero(valor) {
   return valor == null ? '—' : Number(valor).toLocaleString('pt-BR');
+}
+
+function formatarTempoRelativo(timestampMs) {
+  const diffMin = Math.floor((Date.now() - timestampMs) / 60000);
+  if (diffMin < 1) return 'agora';
+  if (diffMin < 60) return `há ${diffMin}min`;
+
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `há ${diffH}h`;
+
+  const diffD = Math.floor(diffH / 24);
+  if (diffD < 30) return `há ${diffD}d`;
+
+  return new Date(timestampMs).toLocaleDateString('pt-BR');
 }
 
 function iconeMini(plataforma) {
@@ -32,17 +48,9 @@ function atualizarCard(plataforma, dados) {
   }
 }
 
-function limitarItens(lista, max = MAX_ITENS_TELA) {
-  while (lista.children.length > max) {
-    lista.removeChild(lista.lastChild);
-  }
-}
-
-function prependAtividade(item) {
-  const lista = document.getElementById('lista-atividades');
-  lista.querySelector('.item-vazio')?.remove();
-
+function criarItemAtividade(item) {
   const li = document.createElement('li');
+  li.dataset.timestamp = String(item.timestamp);
   li.appendChild(iconeMini(item.plataforma));
 
   const usuario = document.createElement('span');
@@ -55,8 +63,72 @@ function prependAtividade(item) {
   detalhe.textContent = textoAtividade(item);
   li.appendChild(detalhe);
 
-  lista.prepend(li);
-  limitarItens(lista);
+  const tempo = document.createElement('span');
+  tempo.className = 'item-tempo';
+  tempo.textContent = formatarTempoRelativo(item.timestamp);
+  li.appendChild(tempo);
+
+  return li;
+}
+
+// Itens novos (evento ao vivo, ou cada item do snapshot inicial processado em
+// ordem cronológica) sempre entram no topo - a lista fica com o mais novo em
+// cima e o mais antigo embaixo, igual outros feeds de atividade.
+function prependAtividade(item) {
+  const lista = document.getElementById('lista-atividades');
+  lista.querySelector('.item-vazio')?.remove();
+  lista.prepend(criarItemAtividade(item));
+}
+
+// Página mais antiga carregada pelo scroll infinito entra embaixo, na mesma
+// ordem (mais novo do lote primeiro) - ver carregarAtividadesAntigas.
+function anexarAtividadeAntiga(item) {
+  const lista = document.getElementById('lista-atividades');
+  lista.querySelector('.item-vazio')?.remove();
+  lista.appendChild(criarItemAtividade(item));
+}
+
+function atualizarTemposRelativos() {
+  for (const li of document.querySelectorAll('#lista-atividades li[data-timestamp]')) {
+    const tempo = li.querySelector('.item-tempo');
+    if (tempo) tempo.textContent = formatarTempoRelativo(Number(li.dataset.timestamp));
+  }
+}
+
+// Estado do "carregar mais" (scroll infinito) da Atividade recente - o
+// snapshot/eventos ao vivo só trazem os itens mais recentes (ver
+// hub.TAMANHO_SNAPSHOT_HISTORICO no backend); o resto do histórico completo
+// vem sob demanda de GET /api/atividades.
+const paginacaoAtividades = { carregando: false, esgotado: false, maisAntigo: null };
+
+async function carregarAtividadesAntigas() {
+  if (paginacaoAtividades.carregando || paginacaoAtividades.esgotado) return;
+  if (paginacaoAtividades.maisAntigo == null) return;
+
+  paginacaoAtividades.carregando = true;
+  try {
+    const resposta = await fetch(`/api/atividades?antes=${paginacaoAtividades.maisAntigo}&limite=50`);
+    if (!resposta.ok) return;
+    const { itens } = await resposta.json();
+
+    if (!itens || itens.length === 0) {
+      paginacaoAtividades.esgotado = true;
+      return;
+    }
+
+    for (const item of itens) anexarAtividadeAntiga(item);
+    paginacaoAtividades.maisAntigo = itens[itens.length - 1].timestamp;
+  } catch (erro) {
+    console.error('Falha ao carregar atividades antigas:', erro);
+  } finally {
+    paginacaoAtividades.carregando = false;
+  }
+}
+
+function aoRolarListaAtividades() {
+  const lista = document.getElementById('lista-atividades');
+  const distanciaDoFim = lista.scrollHeight - lista.scrollTop - lista.clientHeight;
+  if (distanciaDoFim < LIMIAR_SCROLL_PX) carregarAtividadesAntigas();
 }
 
 function adicionarChat(item, { autoScroll = true } = {}) {
@@ -72,12 +144,22 @@ function adicionarChat(item, { autoScroll = true } = {}) {
   if (item.cor) usuario.style.color = item.cor;
   li.appendChild(usuario);
 
+  // Mensagens que o próprio bot mandou (via /api/kick/enviar-mensagem) não
+  // vêm de um espectador real - marca visualmente pra não parecer que foi
+  // alguém do chat. Ver origem: "bot_local" em kakazim_panel/hub.py.
+  if (item.origem === 'bot_local') {
+    const badge = document.createElement('span');
+    badge.className = 'badge-bot';
+    badge.textContent = 'bot';
+    li.appendChild(badge);
+  }
+
   const mensagem = document.createElement('span');
   mensagem.textContent = item.mensagem || '';
   li.appendChild(mensagem);
 
   lista.appendChild(li);
-  while (lista.children.length > MAX_ITENS_TELA) {
+  while (lista.children.length > MAX_ITENS_TELA_CHAT) {
     lista.removeChild(lista.firstChild);
   }
 
@@ -106,11 +188,17 @@ function renderizarSnapshot(estado) {
 
   const listaAtividades = document.getElementById('lista-atividades');
   listaAtividades.innerHTML = '';
-  const atividadesRecentes = [...estado.atividades].reverse();
-  if (atividadesRecentes.length === 0) {
+  paginacaoAtividades.carregando = false;
+  paginacaoAtividades.esgotado = false;
+  if (estado.atividades.length === 0) {
     listaAtividades.innerHTML = '<li class="item-vazio">Sem atividade ainda.</li>';
+    paginacaoAtividades.maisAntigo = null;
   } else {
-    for (const item of atividadesRecentes.slice(0, MAX_ITENS_TELA)) prependAtividade(item);
+    // estado.atividades vem em ordem cronológica crescente (mais antigo
+    // primeiro) - processar nessa ordem com prepend deixa o mais novo no
+    // topo, igual um evento ao vivo chegando.
+    for (const item of estado.atividades) prependAtividade(item);
+    paginacaoAtividades.maisAntigo = estado.atividades[0].timestamp;
   }
 
   const listaChat = document.getElementById('lista-chat');
@@ -118,7 +206,7 @@ function renderizarSnapshot(estado) {
   if (estado.chat.length === 0) {
     listaChat.innerHTML = '<li class="item-vazio">Sem mensagens ainda.</li>';
   } else {
-    for (const item of estado.chat.slice(-MAX_ITENS_TELA)) adicionarChat(item, { autoScroll: false });
+    for (const item of estado.chat) adicionarChat(item, { autoScroll: false });
     listaChat.scrollTop = listaChat.scrollHeight;
   }
 
@@ -152,4 +240,6 @@ function conectar() {
   });
 }
 
+document.getElementById('lista-atividades').addEventListener('scroll', aoRolarListaAtividades);
+setInterval(atualizarTemposRelativos, INTERVALO_ATUALIZACAO_TEMPO_MS);
 conectar();

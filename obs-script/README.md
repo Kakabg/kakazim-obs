@@ -189,7 +189,18 @@ Com o script selecionado na lista, os campos aparecem à direita:
 
 Depois de preencher tudo, clique em **"🔗 Autorizar Twitch (abre no
 navegador)"** uma vez (ver próxima seção sobre criar o app da Twitch antes
-disso). Depois de autorizar, clique em **"🔄 Reiniciar conexões"** pra
+disso) - essa é a sua conta principal, só usada pra leitura/estatísticas
+(viewers, seguidores, inscritos, feed de chat).
+
+Em seguida clique também em **"🤖 Autorizar Twitch (bot, abre no
+navegador)"** - essa é a conta separada (ex: `kakazimbot`, já cadastrada como
+Moderadora/Editora do seu canal) que efetivamente manda a mensagem quando
+você aperta "Enviar Mensagem" no Stream Deck. **Antes de clicar nesse
+segundo botão, entre no navegador com a conta bot** (aba anônima ou outro
+perfil do navegador) - quem decide qual conta autoriza é a sessão logada no
+navegador na hora do consentimento da Twitch, não o botão em si.
+
+Depois de autorizar os dois, clique em **"🔄 Reiniciar conexões"** pra
 ativar de fato o chat/feed da Twitch (a conexão só é aberta na primeira vez
 que o script carrega ou quando esse botão é clicado).
 
