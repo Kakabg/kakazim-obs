@@ -1,0 +1,7 @@
+# Unica dependencia externa do script - tudo o resto usa so a biblioteca
+# padrao do Python (http.server, urllib, threading, json...).
+#
+# Precisa ser instalada dentro do MESMO Python que o OBS estiver usando (o
+# configurado em Tools > Scripts > Python Settings), nao num Python qualquer
+# do sistema. Ver README.md pra instrucoes completas.
+websocket-client>=1.8.0

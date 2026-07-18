@@ -1,0 +1,252 @@
+:root {
+  --bg: #0d0e13;
+  --card-bg: #16171f;
+  --border: #262835;
+  --texto: #e8e8ee;
+  --texto-fraco: #8b8d9c;
+  --kick: #53fc18;
+  --twitch: #9146ff;
+  --vermelho: #ff4757;
+  --verde: #2ecc71;
+  font-size: 15px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--texto);
+  font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+.painel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "stats stats"
+    "feed chat"
+    "automacoes automacoes";
+  gap: 12px;
+  padding: 12px;
+  height: 100vh;
+  width: 100vw;
+}
+
+/* --- Stats --- */
+/* Kick e Twitch dividem um único card (lado a lado) em vez de dois cards
+   separados - metade da moldura/padding duplicados de antes. */
+
+.stats {
+  grid-area: stats;
+}
+
+.card--combo {
+  display: flex;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.card-plataforma {
+  flex: 1;
+  padding: 8px 10px;
+  border-left: 3px solid var(--linha);
+}
+
+.card-plataforma--kick { --linha: var(--kick); }
+.card-plataforma--twitch { --linha: var(--twitch); border-left-color: var(--linha); }
+
+.card-plataforma header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.card-plataforma h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.plataforma-icone {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.75rem;
+  color: #0d0e13;
+}
+
+.plataforma-icone--kick { background: var(--kick); }
+.plataforma-icone--twitch { background: var(--twitch); color: #fff; }
+
+.ao-vivo {
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 4px;
+  color: var(--texto-fraco);
+  background: transparent;
+  border: 1px solid var(--border);
+}
+
+.ao-vivo[data-ao-vivo="true"] {
+  color: #fff;
+  background: var(--vermelho);
+  border-color: var(--vermelho);
+  animation: pulsar 2s infinite;
+}
+
+@keyframes pulsar {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.card-plataforma dl {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  margin: 0;
+}
+
+.card-plataforma dt {
+  font-size: 0.65rem;
+  color: var(--texto-fraco);
+  text-transform: uppercase;
+}
+
+.card-plataforma dd {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --- Colunas (feed / chat) --- */
+
+.coluna {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.coluna--feed { grid-area: feed; }
+.coluna--chat { grid-area: chat; }
+
+.coluna h3 {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+}
+
+.lista {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.lista li {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 5px 2px;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.lista li:last-child { border-bottom: none; }
+
+.icone-plataforma-mini {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  font-size: 0.55rem;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0d0e13;
+}
+
+.icone-plataforma-mini.kick { background: var(--kick); }
+.icone-plataforma-mini.twitch { background: var(--twitch); color: #fff; }
+
+.item-usuario { font-weight: 600; }
+
+.item-detalhe { color: var(--texto-fraco); }
+
+.item-vazio {
+  color: var(--texto-fraco);
+  font-style: italic;
+  padding: 8px 2px;
+}
+
+/* --- Automações --- */
+
+.automacoes {
+  grid-area: automacoes;
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 10px;
+  width: fit-content;
+  justify-self: start;
+}
+
+.automacoes h3 {
+  margin: 0 0 4px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+}
+
+.lista--automacoes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.chip-automacao {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 0.8rem;
+}
+
+.chip-automacao .bolinha {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--texto-fraco);
+}
+
+.chip-automacao[data-ligado="true"] .bolinha { background: var(--verde); }
+.chip-automacao[data-ligado="false"] .bolinha { background: var(--vermelho); }

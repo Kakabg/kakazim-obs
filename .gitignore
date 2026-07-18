@@ -1,0 +1,6 @@
+node_modules/
+.env
+server/data/
+obs-script/data/
+obs-script/__pycache__/
+obs-script/**/__pycache__/

@@ -1,0 +1,159 @@
+"""Script de OBS (Tools > Scripts) que sobe o painel local da live (Kick +
+Twitch) como um servidor HTTP em background, nativamente junto com o OBS -
+sem precisar de terminal nem processo Node separado.
+
+Ve o README.md nesta pasta pra instrucoes de instalacao (Python, dependencia
+"websocket-client", apps da Twitch/Kick).
+
+IMPORTANTE sobre threading: os callbacks deste arquivo (script_load,
+script_update etc.) rodam na thread principal do OBS - qualquer chamada de
+rede feita diretamente aqui travaria a interface toda. Por isso eles so
+disparam threads em background (ver kakazim_panel/hub.py e http_server.py) e
+nunca fazem I/O bloqueante por conta propria.
+"""
+
+import os
+import sys
+
+# Garante que o pacote kakazim_panel (irmao deste arquivo) seja importavel,
+# independente de qual diretorio o OBS usou como cwd ao carregar o script.
+_DIRETORIO_SCRIPT = os.path.dirname(os.path.abspath(__file__))
+if _DIRETORIO_SCRIPT not in sys.path:
+    sys.path.insert(0, _DIRETORIO_SCRIPT)
+
+import obspython as obs  # noqa: E402  (precisa vir depois do sys.path.insert)
+
+from kakazim_panel import config, hub, store  # noqa: E402
+from kakazim_panel.http_server import ServidorHttp  # noqa: E402
+
+config.definir_diretorio_base(_DIRETORIO_SCRIPT)
+
+_servidor_http = ServidorHttp()
+_iniciado = False
+_ultimo_seed_kick_aplicado = None
+
+# (id da propriedade, rotulo, e se e um campo de senha)
+_CAMPOS_TEXTO = [
+    ("twitch_client_id", "Twitch: Client ID", False),
+    ("twitch_client_secret", "Twitch: Client Secret", True),
+    ("twitch_broadcaster_login", "Twitch: login do canal (ex: kakazim)", False),
+    ("kick_client_id", "Kick: Client ID", False),
+    ("kick_client_secret", "Kick: Client Secret", True),
+    ("kick_broadcaster_slug", "Kick: slug do canal (ex: kakazim)", False),
+    ("kick_relay_url", "Kick: URL do relay (kakazim-bot no Railway)", False),
+    ("kick_relay_secret", "Kick: segredo do relay (PAINEL_RELAY_SECRET)", True),
+    ("cs2_status_url", "Automação CS2: URL de status", False),
+]
+
+
+def script_description():
+    return (
+        "<h2>Painel da live (Kakazim)</h2>"
+        "<p>Sobe um servidor local com estatísticas, feed de atividade e chat "
+        "unificado de Kick + Twitch, pra usar como Browser Source no OBS.</p>"
+        "<p>Preencha as credenciais abaixo, aplique, clique em "
+        '"Autorizar Twitch" uma vez e depois adicione '
+        "<code>http://localhost:&lt;porta&gt;</code> como Browser Source.</p>"
+        "<p>Detalhes e passos completos no README.md da pasta deste script.</p>"
+    )
+
+
+def script_defaults(settings):
+    obs.obs_data_set_default_int(settings, "porta", config.PADROES["porta"])
+    for chave, _rotulo, _senha in _CAMPOS_TEXTO:
+        obs.obs_data_set_default_string(settings, chave, config.PADROES[chave])
+    obs.obs_data_set_default_int(settings, "kick_seguidores_atual", 0)
+
+
+def _reiniciar_conexoes(props, prop):
+    print("[Painel] Reiniciando conexões (Twitch/Kick/automações)...")
+    hub.parar()
+    hub.iniciar()
+    return True
+
+
+def script_properties():
+    props = obs.obs_properties_create()
+    porta_atual = config.obter("porta") or config.PADROES["porta"]
+
+    obs.obs_properties_add_int(props, "porta", "Porta do painel local", 1024, 65535, 1)
+
+    for chave, rotulo, senha in _CAMPOS_TEXTO:
+        tipo = obs.OBS_TEXT_PASSWORD if senha else obs.OBS_TEXT_DEFAULT
+        obs.obs_properties_add_text(props, chave, rotulo, tipo)
+
+    botao_login_twitch = obs.obs_properties_add_button(
+        props, "abrir_twitch_login", "🔗 Autorizar Twitch (abre no navegador)", lambda p, pr: True
+    )
+    obs.obs_property_button_set_type(botao_login_twitch, obs.OBS_BUTTON_URL)
+    obs.obs_property_button_set_url(botao_login_twitch, f"http://localhost:{porta_atual}/twitch/login")
+
+    prop_seed = obs.obs_properties_add_int(
+        props, "kick_seguidores_atual", "Kick: definir/resetar total de seguidores", 0, 100_000_000, 1
+    )
+    obs.obs_property_set_long_description(
+        prop_seed,
+        "Não existe endpoint oficial da Kick que devolva esse total, então é cadastrado na mão aqui uma vez. "
+        "Depois disso o próprio painel incrementa sozinho a cada novo seguidor. Só digite um valor novo aqui "
+        "de novo se quiser resetar/corrigir o número (o painel em si, no navegador, sempre mostra o valor "
+        "atual e correto - esse campo é só pra definir o ponto de partida ou corrigir).",
+    )
+
+    botao_painel = obs.obs_properties_add_button(props, "abrir_painel", "🖥️ Abrir o painel no navegador", lambda p, pr: True)
+    obs.obs_property_button_set_type(botao_painel, obs.OBS_BUTTON_URL)
+    obs.obs_property_button_set_url(botao_painel, f"http://localhost:{porta_atual}")
+
+    obs.obs_properties_add_button(props, "reiniciar", "🔄 Reiniciar conexões (após mudar credenciais)", _reiniciar_conexoes)
+
+    return props
+
+
+def _ler_config_de_settings(settings):
+    valores = {"porta": obs.obs_data_get_int(settings, "porta") or config.PADROES["porta"]}
+    for chave, _rotulo, _senha in _CAMPOS_TEXTO:
+        valores[chave] = obs.obs_data_get_string(settings, chave)
+    return valores
+
+
+def script_update(settings):
+    global _ultimo_seed_kick_aplicado
+
+    porta_anterior = config.obter("porta")
+    config.atualizar(_ler_config_de_settings(settings))
+
+    seed_atual = obs.obs_data_get_int(settings, "kick_seguidores_atual")
+    if _ultimo_seed_kick_aplicado is not None and seed_atual != _ultimo_seed_kick_aplicado:
+        print(f"[Painel] Total de seguidores da Kick redefinido manualmente pra {seed_atual}.")
+        hub.definir_total_seguidores_kick(seed_atual)
+    _ultimo_seed_kick_aplicado = seed_atual
+
+    nova_porta = config.obter("porta")
+    if _iniciado and nova_porta != porta_anterior:
+        print(f"[Painel] Porta mudou de {porta_anterior} pra {nova_porta}, reiniciando servidor HTTP...")
+        _servidor_http.parar()
+        _servidor_http.iniciar()
+
+
+def script_load(settings):
+    global _iniciado, _ultimo_seed_kick_aplicado
+
+    config.atualizar(_ler_config_de_settings(settings))
+    # Captura o valor do campo "seguidores" como ele estiver ao carregar (seja
+    # o default 0 ou algo salvo de uma sessão anterior) - só tratamos como
+    # "o usuário quer redefinir" quando esse número mudar depois disso.
+    _ultimo_seed_kick_aplicado = obs.obs_data_get_int(settings, "kick_seguidores_atual")
+
+    if _iniciado:
+        return
+
+    _servidor_http.iniciar()
+    hub.iniciar()
+    _iniciado = True
+
+
+def script_unload():
+    global _iniciado
+    print("[Painel] Desligando (script_unload)...")
+    hub.parar()
+    _servidor_http.parar()
+    _iniciado = False

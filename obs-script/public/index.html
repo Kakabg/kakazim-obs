@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Painel da live</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="painel">
+    <section class="stats">
+      <article class="card card--combo">
+        <div class="card-plataforma card-plataforma--kick" id="card-kick">
+          <header>
+            <span class="plataforma-icone plataforma-icone--kick">K</span>
+            <h2>Kick</h2>
+            <span class="ao-vivo" data-ao-vivo="false">AO VIVO</span>
+          </header>
+          <dl>
+            <div><dt>Viewers</dt><dd data-campo="viewers">—</dd></div>
+            <div><dt>Seguidores</dt><dd data-campo="seguidores">—</dd></div>
+            <div><dt>Inscritos</dt><dd data-campo="inscritos">—</dd></div>
+          </dl>
+        </div>
+
+        <div class="card-plataforma card-plataforma--twitch" id="card-twitch">
+          <header>
+            <span class="plataforma-icone plataforma-icone--twitch">T</span>
+            <h2>Twitch</h2>
+            <span class="ao-vivo" data-ao-vivo="false">AO VIVO</span>
+          </header>
+          <dl>
+            <div><dt>Viewers</dt><dd data-campo="viewers">—</dd></div>
+            <div><dt>Seguidores</dt><dd data-campo="seguidores">—</dd></div>
+            <div><dt>Inscritos</dt><dd data-campo="inscritos">—</dd></div>
+          </dl>
+        </div>
+      </article>
+    </section>
+
+    <section class="coluna coluna--feed">
+      <h3>Atividade recente</h3>
+      <ul class="lista lista--feed" id="lista-atividades"></ul>
+    </section>
+
+    <section class="coluna coluna--chat">
+      <h3>Chat</h3>
+      <ul class="lista lista--chat" id="lista-chat"></ul>
+    </section>
+
+    <section class="automacoes">
+      <h3>Automações</h3>
+      <ul class="lista lista--automacoes" id="lista-automacoes"></ul>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
