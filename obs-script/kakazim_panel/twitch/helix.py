@@ -47,12 +47,34 @@ def buscar_total_inscritos():
     return (corpo or {}).get("total", 0)
 
 
-def enviar_mensagem_chat(mensagem):
-    """Manda mensagem no chat do streamer autenticado como a conta bot
-    separada (kakazimbot, ja moderadora do canal) - broadcaster_id e' do
-    streamer, sender_id e' do bot. Exige token do bot com escopos
-    user:write:chat + user:bot (ver /twitch/login?role=bot)."""
-    broadcaster_id = broadcaster_user_id()
+def buscar_usuario_por_login(login):
+    """Resolve um login (username) da Twitch pro user id correspondente -
+    nao exige nenhum escopo especial, so um token valido qualquer."""
+    corpo = _chamar_helix("users", {"login": login})
+    usuarios = (corpo or {}).get("data") or []
+    if not usuarios:
+        raise RuntimeError(f'Canal Twitch "{login}" não encontrado.')
+    return usuarios[0]
+
+
+def enviar_mensagem_chat(mensagem, canal=None):
+    """Manda mensagem no chat de um canal, autenticado como a conta bot
+    separada (kakazimbot) - sender_id e' sempre do bot. `canal` (login da
+    Twitch) define o destino; se omitido, cai pro canal autorizado como
+    "streamer" (retrocompatibilidade). Exige token do bot com escopos
+    user:write:chat + user:bot (ver /twitch/login?role=bot).
+
+    Importante: a Twitch so aceita mandar mensagem num canal onde o bot NAO
+    e' moderador se o dono daquele canal tiver autorizado o escopo
+    channel:bot pro app - na pratica, cada canal de destino precisa ter
+    "kakazimbot" adicionado como moderador (/mod kakazimbot no chat dele)
+    antes de funcionar. Sem isso, a Twitch recusa com 401/403.
+    """
+    if canal:
+        usuario = buscar_usuario_por_login(canal)
+        broadcaster_id = usuario["id"]
+    else:
+        broadcaster_id = broadcaster_user_id()
 
     tokens_bot = store.buscar_tokens_twitch("bot")
     bot_user_id = tokens_bot.get("userId")
@@ -72,4 +94,9 @@ def enviar_mensagem_chat(mensagem):
     try:
         return requisitar(f"{HELIX_BASE}/chat/messages", method="POST", headers=headers, dados_json=dados_json)
     except ErroHttp as erro:
+        if erro.status in (401, 403):
+            raise RuntimeError(
+                f'Sem permissão pra mandar mensagem nesse canal - peça pro dono adicionar "kakazimbot" como '
+                f"moderador ({erro.status}): {erro.corpo}"
+            ) from erro
         raise RuntimeError(f"Falha ao enviar mensagem no chat da Twitch ({erro.status}): {erro.corpo}") from erro

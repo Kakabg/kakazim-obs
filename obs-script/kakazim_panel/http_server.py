@@ -180,14 +180,15 @@ class Handler(BaseHTTPRequestHandler):
         try:
             corpo = json.loads(bruto or b"{}")
             mensagem = (corpo.get("message") or "").strip()
+            canal = (corpo.get("channel") or "").strip() or None
             if not mensagem:
                 raise ValueError("mensagem vazia")
         except (TypeError, ValueError, json.JSONDecodeError):
-            self._responder_json({"erro": 'Envie { "message": "<texto>" }.'}, status=400)
+            self._responder_json({"erro": 'Envie { "message": "<texto>", "channel": "<login da Twitch>" }.'}, status=400)
             return
 
         try:
-            twitch_helix.enviar_mensagem_chat(mensagem)
+            twitch_helix.enviar_mensagem_chat(mensagem, canal=canal)
         except Exception as erro:
             self._responder_json({"erro": f"Falha ao enviar mensagem no chat da Twitch: {erro}"}, status=502)
             return
