@@ -12,6 +12,7 @@ from . import config, store
 from .automations.cs2_scene_switcher import MonitorCs2SceneSwitcher
 from .kick import stats as kick_stats
 from .kick.relay_client import ClienteRelayKick
+from .twitch import comandos_chat as twitch_comandos_chat
 from .twitch import helix as twitch_helix
 from .twitch import oauth as twitch_oauth
 from .twitch.eventsub import ClienteEventSub
@@ -172,6 +173,26 @@ def _tratar_evento_twitch(tipo, evento):
                 "cor": evento.get("color") or None,
             }
         )
+        _responder_comando_chat_twitch(evento.get("chatter_user_id"), mensagem)
+
+
+def _responder_comando_chat_twitch(chatter_user_id, mensagem):
+    """Comando de resposta automática (aba admin "kakazim.bot" do
+    Kakaverso). Não responde mensagem do próprio kakazimbot - evita loop
+    (comparando com a conta bot autorizada via /twitch/login?role=bot)."""
+    tokens_bot = store.buscar_tokens_twitch("bot")
+    bot_user_id = tokens_bot.get("userId")
+    if bot_user_id and str(chatter_user_id) == str(bot_user_id):
+        return
+
+    resposta = twitch_comandos_chat.buscar_resposta_comando(mensagem)
+    if not resposta:
+        return
+
+    try:
+        twitch_helix.enviar_mensagem_chat(resposta)
+    except Exception as erro:
+        print(f"[Twitch] Falha ao responder comando de chat automático: {erro}")
 
 
 def _iniciar_twitch():

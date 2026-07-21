@@ -8,6 +8,7 @@ configuracao a qualquer momento.
 """
 
 import threading
+from urllib.parse import urlparse
 
 _lock = threading.Lock()
 
@@ -55,3 +56,13 @@ def atualizar(valores):
             if chave not in PADROES:
                 raise KeyError(f"Config desconhecida: {chave}")
             _config[chave] = valor
+
+
+def url_base_kakazim_bot():
+    """Deriva esquema+host do kakazim-bot a partir de kick_relay_url (já
+    configurado pro relay de eventos) - não usa o caminho dele
+    (/painel/eventos), só a origem. Reaproveitado por qualquer chamada HTTP
+    pro kakazim-bot (renovação de token pessoal da Kick, comandos de chat
+    automático da Twitch etc)."""
+    partes = urlparse(obter("kick_relay_url"))
+    return f"{partes.scheme}://{partes.netloc}"

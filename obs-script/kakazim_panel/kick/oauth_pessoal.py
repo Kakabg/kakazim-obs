@@ -26,7 +26,6 @@ mesmo segredo já usado pelo resto da integração com o kakazim-bot
 """
 
 import time
-from urllib.parse import urlparse
 
 from .. import config, store
 from ..http_util import ErroHttp, montar_url, requisitar
@@ -34,20 +33,12 @@ from ..http_util import ErroHttp, montar_url, requisitar
 MARGEM_EXPIRACAO_MS = 2 * 60 * 1000
 
 
-def _url_base_kakazim_bot():
-    """Deriva esquema+host do kakazim-bot a partir de kick_relay_url (já
-    configurado pro relay de eventos) - não usa o caminho dele
-    (/painel/eventos), só a origem."""
-    partes = urlparse(config.obter("kick_relay_url"))
-    return f"{partes.scheme}://{partes.netloc}"
-
-
 def montar_url_login(porta):
     """URL do botão "Autorizar minha conta Kick (pessoal, pra chat)" -
     aponta pro kakazim-bot, não pra Kick diretamente (é o kakazim-bot quem
     monta a URL de autorização de verdade, com o client_id/secret dele)."""
     segredo = config.obter("kick_relay_secret")
-    return montar_url(f"{_url_base_kakazim_bot()}/kick/login/painel-obs", {"key": segredo, "porta": porta})
+    return montar_url(f"{config.url_base_kakazim_bot()}/kick/login/painel-obs", {"key": segredo, "porta": porta})
 
 
 def receber_token(dados):
@@ -66,7 +57,7 @@ def receber_token(dados):
 
 def _renovar_token(refresh_token):
     segredo = config.obter("kick_relay_secret")
-    url = montar_url(f"{_url_base_kakazim_bot()}/api/kick/chat-pessoal/renovar", {"key": segredo})
+    url = montar_url(f"{config.url_base_kakazim_bot()}/api/kick/chat-pessoal/renovar", {"key": segredo})
     try:
         token = requisitar(url, method="POST", dados_json={"refresh_token": refresh_token})
     except ErroHttp as erro:
