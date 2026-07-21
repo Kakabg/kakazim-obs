@@ -93,6 +93,118 @@ Property Inspector, default `3211`) - se você mudou esse valor lá, ajuste
 também o campo "Automação CS2: URL de status" nas configurações deste
 script pra apontar pra mesma porta.
 
+## Sobre o status do Clipador
+
+Generalizei o mecanismo acima em vez de duplicar um monitor de polling pro
+Clipador: o CS2 Scene Switcher já roda seu próprio servidor HTTP local (pro
+GSI), então fazia sentido esse painel *sondar* (`GET /status`) esse servidor.
+O Clipador (`kakazim-live/src/actions/clipador`) não roda servidor HTTP
+nenhum - é só um botão do Stream Deck que liga/desliga uma sessão persistida
+em disco. Pra esse caso, o caminho inverso é mais simples: o Clipador
+*empurra* o próprio status pra cá.
+
+- `kakazim_panel/hub.py`: nova função pública `reportar_status_automacao(nome,
+  dados)`, que cai no mesmo `_atualizar_automacao` que o monitor de polling do
+  CS2 já usava - o frontend (`public/app.js`) já tratava "nome" de forma
+  genérica, então o chip "clipador: ligado/desligado" aparece na Automações
+  sem precisar mexer em HTML/CSS/JS nenhum.
+- `kakazim_panel/http_server.py`: nova rota `POST /api/automations/<nome>/
+  status`, body `{"ligado": true|false}` (`<nome>` livre, só letras
+  minúsculas/números/hífen). É o mesmo endpoint que qualquer automação futura
+  sem servidor HTTP próprio pode usar - não é exclusivo do Clipador.
+- Do lado do `kakazim-live`, a action "Clipador Toggle" chama esse endpoint
+  (`http://127.0.0.1:<porta do painel>/api/automations/clipador/status`)
+  sempre que a sessão liga/desliga - manualmente pelo botão, ou sozinha
+  quando o encerramento automático por live offline dispara. Ver o resumo
+  final da conversa pros detalhes de onde isso entrou no código do
+  `kakazim-live`.
+
+## Sobre a conta pessoal (Kakabg) na caixa de chat do painel (leia isso)
+
+A caixa de texto embaixo do Chat manda mensagem como a SUA conta pessoal
+(Kakabg), não como o kakazimbot - o resto do projeto (Enviar Mensagem do
+Stream Deck, avisos automáticos) continua 100% no kakazimbot, sem nenhuma
+mudança. São duas autorizações novas, uma por plataforma:
+
+### Twitch: Device Authorization Grant (sem app novo)
+
+Reaproveita o mesmo app público que o `kakazim-live` já usa pro Device Code
+Grant da conta pessoal (autorização de clipe oficial) - é um client "Public"
+da Twitch, sem `client_secret`, pensado exatamente pra esse tipo de fluxo, e
+Device Code não usa redirect URI nenhum. Só o escopo pedido muda
+(`user:write:chat`) e o token fica guardado separado, aqui no kakazim-OBS
+(`kakazim_panel/twitch/device_auth_pessoal.py`) - não depende do
+`kakazim-live` estar aberto nem instalado.
+
+**Não precisa criar nada.** Clique em "💬 Autorizar minha conta Twitch
+(pessoal, pra chat)" nas configurações do script, confirme o código que
+aparecer no console de Scripts na página que abrir no navegador (logado como
+VOCÊ, não como o kakazimbot).
+
+### Kick: via kakazim-bot (não dá pra ter um app dedicado)
+
+Tentamos duas coisas antes de chegar nessa: um app novo e dedicado na Kick
+só pra essa autorização pessoal (**a Kick só permite 2 apps OAuth por
+conta**, e os dois já estavam em uso - Kakazimbot, Kakaverso, então não
+rolou); depois, reaproveitar o app do Kakaverso - só que isso obrigava
+manter o Kakaverso rodando local (`npm run dev`) o tempo todo, o que é ruim
+pro dia a dia. A solução final: **reaproveitar o app do kakazimbot através
+do kakazim-bot**, que já fica sempre de pé no Railway - nada extra pra
+manter rodando no seu PC além do próprio OBS.
+
+**Como funciona (as duas pontas - kakazim-bot é o `server.js` do projeto
+irmão `kakazim-bot`, hospedado 24/7 no Railway):**
+
+```
+1. Você clica "💬 Autorizar minha conta Kick (pessoal, pra chat, abre no
+   navegador)" nas configurações deste script.
+       │
+       ▼
+2. Abre no navegador: https://kakazim-bot-production.up.railway.app/kick/
+   login/painel-obs?key=<kick_relay_secret>&porta=<porta deste painel>
+   (kick_oauth_pessoal.montar_url_login, kakazim-bot/server.js) - o "porta"
+   é como o kakazim-bot sabe pra onde entregar o token no passo 6.
+       │
+       ▼
+3. kakazim-bot redireciona pra Kick com o MESMO app do kakazimbot, pedindo
+   escopo user:read chat:write - você confirma logado como VOCÊ (Kakabg),
+   não como o kakazimbot (troque de conta/aba anônima se precisar).
+       │
+       ▼
+4. Kick redireciona de volta pro /kick/callback de sempre do kakazim-bot -
+   o "destino=painel-obs-chat" e a porta viajam escondidos no state (PKCE),
+   não na URL de volta.
+       │
+       ▼
+5. kakazim-bot troca code por token e, detectando esse destino, NÃO salva
+   config de streamer/bot nenhuma - em vez disso serve uma página HTML com
+   um <script> embutido que faz o fetch() de entrega (ver abaixo).
+       │
+       ▼
+6. Essa página roda no SEU NAVEGADOR (não no Railway - o Railway não tem
+   como alcançar 127.0.0.1 no seu PC, só o seu navegador consegue, por
+   estar na mesma máquina que este painel) e faz:
+   POST http://127.0.0.1:<porta>/api/kick/chat-pessoal/token, autenticado
+   com o mesmo segredo do relay da Kick (key). Handler aqui:
+   http_server.py:_receber_token_kick_pessoal.
+       │
+       ▼
+7. Este painel guarda o token (kick/oauth_pessoal.py:receber_token) e a
+   caixa de chat passa a usá-lo. A página no navegador mostra "pode fechar
+   essa aba" (ou o erro, se o painel não estava aberto) - fim do fluxo.
+```
+
+**Renovação, mais tarde:** só o kakazim-bot tem o `client_secret` desse app
+- então quando o token pessoal guardado aqui estiver perto de expirar, este
+painel chama `POST .../api/kick/chat-pessoal/renovar` no kakazim-bot (mesmo
+segredo) em vez de falar direto com a Kick. Como o kakazim-bot é sempre-de-
+pé, isso nunca depende de nada rodando no seu PC.
+
+**O segredo** é o mesmo já usado pro resto da integração com o kakazim-bot
+(`kick_relay_secret` aqui / `PAINEL_RELAY_SECRET` no Railway do kakazim-bot)
+- não precisa configurar nada novo, só os campos "Kick: URL do relay" e
+"Kick: segredo do relay" que você já tinha preenchido antes.
+
 ## Passos manuais (faça nessa ordem)
 
 ### 1. Instalar Python (se ainda não tiver)
@@ -193,12 +305,15 @@ disso) - essa é a sua conta principal, só usada pra leitura/estatísticas
 (viewers, seguidores, inscritos, feed de chat).
 
 Em seguida clique também em **"🤖 Autorizar Twitch (bot, abre no
-navegador)"** - essa é a conta separada (ex: `kakazimbot`, já cadastrada como
-Moderadora/Editora do seu canal) que efetivamente manda a mensagem quando
-você aperta "Enviar Mensagem" no Stream Deck. **Antes de clicar nesse
-segundo botão, entre no navegador com a conta bot** (aba anônima ou outro
-perfil do navegador) - quem decide qual conta autoriza é a sessão logada no
-navegador na hora do consentimento da Twitch, não o botão em si.
+navegador)"** - essa é a conta separada (ex: `kakazimbot`) que efetivamente
+manda a mensagem quando você aperta "Enviar Mensagem" no Stream Deck. Ela
+manda a mensagem com o próprio User Access Token dela, então não precisa
+ser cadastrada como Moderadora/Editora de nenhum canal de destino - só
+precisa estar autorizada aqui com o escopo `user:write:chat`. **Antes de
+clicar nesse segundo botão, entre no navegador com a conta bot** (aba
+anônima ou outro perfil do navegador) - quem decide qual conta autoriza é a
+sessão logada no navegador na hora do consentimento da Twitch, não o botão
+em si.
 
 Depois de autorizar os dois, clique em **"🔄 Reiniciar conexões"** pra
 ativar de fato o chat/feed da Twitch (a conexão só é aberta na primeira vez

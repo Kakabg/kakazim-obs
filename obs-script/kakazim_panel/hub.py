@@ -94,6 +94,17 @@ def _atualizar_automacao(nome, dados):
     _transmitir({"tipo": "automacao", "nome": nome, "dados": dados})
 
 
+def reportar_status_automacao(nome, dados):
+    """Ponto de entrada publico pra automacoes que reportam o proprio status
+    por push (ex: Clipador, kakazim-live - ver POST /api/automations/<nome>/
+    status em http_server.py) em vez de serem sondadas por um monitor daqui
+    (como o cs2-scene-switcher, ver automations/cs2_scene_switcher.py). Cai
+    no mesmo _atualizar_automacao que os monitores de polling usam - o
+    frontend (public/app.js) ja trata "nome" de forma generica.
+    """
+    _atualizar_automacao(nome, dados)
+
+
 def definir_total_seguidores_kick(total):
     store.definir_total_seguidores_kick(total)
     _atualizar_stats("kick", {"seguidores": total})
@@ -130,8 +141,13 @@ def _tratar_evento_twitch(tipo, evento):
         # Resub (renovação) - diferente de channel.subscribe, que só dispara na
         # primeira inscrição. Não mexe no total de inscritos: a Twitch não
         # manda channel.subscribe de novo pra quem já tava inscrito.
+        meses = evento.get("cumulative_months")
+        texto_mensagem = (evento.get("message") or {}).get("text") or ""
+        detalhe = f"renovou por {meses} meses" if meses is not None else "renovação"
+        if texto_mensagem:
+            detalhe += f": {texto_mensagem}"
         _registrar_atividade(
-            {"plataforma": "twitch", "tipo": "inscricao", "usuario": evento.get("user_name"), "detalhe": "renovação"}
+            {"plataforma": "twitch", "tipo": "inscricao", "usuario": evento.get("user_name"), "detalhe": detalhe}
         )
         return
 
@@ -222,6 +238,32 @@ def _tratar_evento_kick(tipo, payload):
         )
 
 
+# --- StreamElements ---
+# Chega pelo mesmo relay SSE da Kick (ver _ao_receber_evento_relay abaixo) -
+# o kakazim-bot manda tanto eventos da Kick quanto da StreamElements (e da
+# LivePix, hoje inerte) pelo mesmo outbox/endpoint, diferenciados pelo prefixo
+# do "tipo" ("streamelements." aqui).
+def _tratar_evento_streamelements(tipo, payload):
+    if tipo == "streamelements.tip":
+        valor = payload.get("valor")
+        moeda = payload.get("moeda")
+        mensagem = payload.get("mensagem") or ""
+
+        if valor is not None and moeda:
+            valor_formatado = f"R$ {valor}" if moeda == "BRL" else f"{valor} {moeda}"
+        else:
+            valor_formatado = str(valor) if valor is not None else None
+
+        if valor_formatado and mensagem:
+            detalhe = f"{valor_formatado}: {mensagem}"
+        else:
+            detalhe = valor_formatado or mensagem or None
+
+        _registrar_atividade(
+            {"plataforma": "streamelements", "tipo": "doacao", "usuario": payload.get("nome"), "detalhe": detalhe}
+        )
+
+
 def _iniciar_kick():
     kick_salvo = store.buscar_kick()
     if kick_salvo.get("followerTotal") is not None:
@@ -241,7 +283,12 @@ def _iniciar_kick():
         return
 
     def _ao_receber_evento_relay(evento):
-        _tratar_evento_kick(evento.get("tipo"), evento.get("payload") or {})
+        tipo = evento.get("tipo")
+        payload = evento.get("payload") or {}
+        if isinstance(tipo, str) and tipo.startswith("streamelements."):
+            _tratar_evento_streamelements(tipo, payload)
+        else:
+            _tratar_evento_kick(tipo, payload)
 
     global _relay_cliente
     _relay_cliente = ClienteRelayKick(_ao_receber_evento_relay)

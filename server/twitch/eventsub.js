@@ -10,6 +10,8 @@ function tiposDesejados(id) {
   return [
     { type: 'channel.follow', version: '2', condition: { broadcaster_user_id: id, moderator_user_id: id } },
     { type: 'channel.subscribe', version: '1', condition: { broadcaster_user_id: id } },
+    { type: 'channel.subscription.message', version: '1', condition: { broadcaster_user_id: id } },
+    { type: 'channel.raid', version: '1', condition: { to_broadcaster_user_id: id } },
     { type: 'channel.chat.message', version: '1', condition: { broadcaster_user_id: id, user_id: id } },
   ];
 }

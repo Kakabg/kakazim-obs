@@ -14,6 +14,8 @@ nunca fazem I/O bloqueante por conta propria.
 
 import os
 import sys
+import threading
+import webbrowser
 
 # Garante que o pacote kakazim_panel (irmao deste arquivo) seja importavel,
 # independente de qual diretorio o OBS usou como cwd ao carregar o script.
@@ -25,6 +27,8 @@ import obspython as obs  # noqa: E402  (precisa vir depois do sys.path.insert)
 
 from kakazim_panel import config, hub, store  # noqa: E402
 from kakazim_panel.http_server import ServidorHttp  # noqa: E402
+from kakazim_panel.kick import oauth_pessoal as kick_oauth_pessoal  # noqa: E402
+from kakazim_panel.twitch import device_auth_pessoal as twitch_device_auth_pessoal  # noqa: E402
 
 config.definir_diretorio_base(_DIRETORIO_SCRIPT)
 
@@ -56,6 +60,11 @@ def script_description():
         '"Autorizar Twitch (bot)" (conta separada que manda mensagem no chat) '
         "uma vez cada e depois adicione "
         "<code>http://localhost:&lt;porta&gt;</code> como Browser Source.</p>"
+        "<p>Pra caixa de chat direto do painel (embaixo do Chat), autorize também sua "
+        'conta PESSOAL (não o bot) em "Autorizar minha conta Twitch (pessoal, pra chat)" '
+        'e "Autorizar minha conta Kick (pessoal, pra chat)" - as duas passam por serviços '
+        "que já ficam sempre de pé (Twitch direto, Kick via kakazim-bot no Railway), sem "
+        "precisar rodar nada extra no seu PC. Ver README.md.</p>"
         "<p>Detalhes e passos completos no README.md da pasta deste script.</p>"
     )
 
@@ -71,6 +80,42 @@ def _reiniciar_conexoes(props, prop):
     print("[Painel] Reiniciando conexões (Twitch/Kick/automações)...")
     hub.parar()
     hub.iniciar()
+    return True
+
+
+def _autorizar_twitch_pessoal_chat(props, prop):
+    """Botão "Autorizar minha conta Twitch (pessoal, pra chat)" - dispara o
+    Device Authorization Grant (kakazim_panel/twitch/device_auth_pessoal.py).
+    Mantém o callback rápido (só o passo 1, uma chamada HTTP única) e joga o
+    passo 2 (polling até a pessoa confirmar no navegador) pra uma thread -
+    callbacks de botão do OBS rodam na thread principal, então nada
+    bloqueante pode ficar aqui."""
+    try:
+        inicio = twitch_device_auth_pessoal.iniciar_device_authorization()
+    except Exception as erro:
+        print(f"[Painel] Falha ao iniciar autorização pessoal da Twitch (chat): {erro}")
+        return True
+
+    minutos = inicio["expires_in"] // 60
+    print(
+        f'[Painel] Twitch (pessoal, chat): abra {inicio["verification_uri"]} e digite o código '
+        f'{inicio["user_code"]} (expira em {minutos} min). Abrindo o navegador...'
+    )
+    try:
+        webbrowser.open(inicio["verification_uri"])
+    except Exception as erro_navegador:
+        print(f"[Painel] Não consegui abrir o navegador automaticamente ({erro_navegador}) - abra a URL acima na mão.")
+
+    def _aguardar():
+        try:
+            usuario = twitch_device_auth_pessoal.aguardar_autorizacao(
+                inicio["device_code"], inicio["expires_in"], inicio["interval"]
+            )
+            print(f"[Painel] Twitch (pessoal, chat) autorizada: {usuario['login']}. A caixa de chat do painel já pode usar essa conta.")
+        except Exception as erro_autorizacao:
+            print(f"[Painel] Autorização pessoal da Twitch (chat) falhou: {erro_autorizacao}")
+
+    threading.Thread(target=_aguardar, daemon=True, name="twitch-device-auth-pessoal").start()
     return True
 
 
@@ -97,11 +142,46 @@ def script_properties():
     obs.obs_property_button_set_url(botao_login_twitch_bot, f"http://localhost:{porta_atual}/twitch/login?role=bot")
     obs.obs_property_set_long_description(
         botao_login_twitch_bot,
-        "Autoriza a conta separada da Twitch usada só pra mandar mensagem no chat (ex: kakazimbot, já "
-        "moderadora do seu canal) - o botão de cima continua sendo só pra sua conta principal (leitura/stats). "
-        "Fique logado como a conta bot no navegador ANTES de clicar: quem decide qual conta autoriza é a sessão "
-        "do navegador na tela de consentimento da Twitch, não este botão - use uma aba anônima ou outro perfil "
-        "do navegador se já estiver logado como você mesmo.",
+        "Autoriza a conta separada da Twitch usada só pra mandar mensagem no chat (ex: kakazimbot) - não "
+        "precisa ser moderadora de canal nenhum, só ter o escopo user:write:chat autorizado aqui. O botão de "
+        "cima continua sendo só pra sua conta principal (leitura/stats). Fique logado como a conta bot no "
+        "navegador ANTES de clicar: quem decide qual conta autoriza é a sessão do navegador na tela de "
+        "consentimento da Twitch, não este botão - use uma aba anônima ou outro perfil do navegador se já "
+        "estiver logado como você mesmo.",
+    )
+
+    botao_twitch_pessoal_chat = obs.obs_properties_add_button(
+        props,
+        "autorizar_twitch_pessoal_chat",
+        "💬 Autorizar minha conta Twitch (pessoal, pra chat)",
+        _autorizar_twitch_pessoal_chat,
+    )
+    obs.obs_property_set_long_description(
+        botao_twitch_pessoal_chat,
+        "Autoriza a SUA conta pessoal da Twitch (não o kakazimbot) só com o escopo de mandar mensagem no "
+        "chat, exclusivo pra caixa de texto do painel (embaixo do Chat). Abre uma página da Twitch "
+        "(twitch.tv/activate) e um código pra você digitar - acompanhe o console de Scripts (embaixo desta "
+        "janela) pro código e o status. Nada mais no projeto usa essa autorização (Enviar Mensagem do Stream "
+        "Deck e avisos automáticos continuam no kakazimbot).",
+    )
+
+    url_login_kick_pessoal = kick_oauth_pessoal.montar_url_login(porta_atual)
+    botao_kick_pessoal_chat = obs.obs_properties_add_button(
+        props,
+        "abrir_kick_login_pessoal",
+        "💬 Autorizar minha conta Kick (pessoal, pra chat, abre no navegador)",
+        lambda p, pr: True,
+    )
+    obs.obs_property_button_set_type(botao_kick_pessoal_chat, obs.OBS_BUTTON_URL)
+    obs.obs_property_button_set_url(botao_kick_pessoal_chat, url_login_kick_pessoal)
+    obs.obs_property_set_long_description(
+        botao_kick_pessoal_chat,
+        "Autoriza a SUA conta pessoal da Kick (não o kakazimbot) pra caixa de texto do painel - reaproveita o "
+        "mesmo app OAuth do kakazimbot na Kick (ela só permite 2 apps por conta, já em uso) via uma rota nova "
+        "no kakazim-bot (sempre de pé no Railway - não depende de nada rodando no seu PC além deste painel "
+        "mesmo). Depois de autorizar, o kakazim-bot entrega o token de volta pra este painel sozinho (o "
+        "navegador que faz a entrega, já que o Railway não alcança o seu PC diretamente). Fique logado como "
+        "sua conta pessoal (Kakabg) no navegador antes de clicar. Ver README.md pro fluxo completo.",
     )
 
     prop_seed = obs.obs_properties_add_int(

@@ -38,11 +38,35 @@ _ESTADO_TOKEN_TWITCH_PADRAO = {
 
 PAPEIS_TWITCH = ("streamer", "bot")
 
+# Tokens da conta PESSOAL do streamer (Kakabg), separados de "twitch"/"kick"
+# acima (que guardam streamer-leitura/bot) - usados exclusivamente pela caixa
+# de chat direto do painel (ver twitch/device_auth_pessoal.py e
+# kick/oauth_pessoal.py). Formato próprio em vez de reaproveitar PAPEIS_TWITCH
+# porque são fluxos de autorização completamente diferentes (device code com
+# app público vs. authorization_code+PKCE com app dedicado da Kick).
+_ESTADO_TOKEN_PESSOAL_TWITCH_PADRAO = {
+    "accessToken": None,
+    "refreshToken": None,
+    "expiresAt": None,
+    "userId": None,
+    "login": None,
+}
+
+_ESTADO_TOKEN_PESSOAL_KICK_PADRAO = {
+    "accessToken": None,
+    "refreshToken": None,
+    "expiresAt": None,
+    "userId": None,
+    "nome": None,
+}
+
 _ESTADO_PADRAO = {
     "twitch": {
         "streamer": dict(_ESTADO_TOKEN_TWITCH_PADRAO),
         "bot": dict(_ESTADO_TOKEN_TWITCH_PADRAO),
     },
+    "twitch_chat_pessoal": dict(_ESTADO_TOKEN_PESSOAL_TWITCH_PADRAO),
+    "kick_chat_pessoal": dict(_ESTADO_TOKEN_PESSOAL_KICK_PADRAO),
     "kick": {
         "followerTotal": None,
         "followerSeedEm": None,
@@ -146,6 +170,42 @@ def buscar_tokens_twitch(papel="streamer"):
         raise ValueError(f"Papel de token Twitch inválido: {papel}")
     with _lock:
         return dict(_obter_estado()["twitch"][papel])
+
+
+def salvar_token_twitch_chat_pessoal(access_token, refresh_token, expires_at, user_id, login):
+    with _lock:
+        estado = _obter_estado()
+        estado["twitch_chat_pessoal"] = {
+            "accessToken": access_token,
+            "refreshToken": refresh_token,
+            "expiresAt": expires_at,
+            "userId": user_id,
+            "login": login,
+        }
+        _salvar()
+
+
+def buscar_token_twitch_chat_pessoal():
+    with _lock:
+        return dict(_obter_estado()["twitch_chat_pessoal"])
+
+
+def salvar_token_kick_chat_pessoal(access_token, refresh_token, expires_at, user_id, nome):
+    with _lock:
+        estado = _obter_estado()
+        estado["kick_chat_pessoal"] = {
+            "accessToken": access_token,
+            "refreshToken": refresh_token,
+            "expiresAt": expires_at,
+            "userId": user_id,
+            "nome": nome,
+        }
+        _salvar()
+
+
+def buscar_token_kick_chat_pessoal():
+    with _lock:
+        return dict(_obter_estado()["kick_chat_pessoal"])
 
 
 def definir_total_seguidores_kick(total):

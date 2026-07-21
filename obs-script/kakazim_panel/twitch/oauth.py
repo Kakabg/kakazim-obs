@@ -5,9 +5,11 @@ kakazim-bot.
 
 Suporta dois papeis de conta, cada um com seu proprio token guardado (ver
 store.PAPEIS_TWITCH): "streamer" (a conta principal, so leitura/stats) e
-"bot" (conta separada tipo kakazimbot, ja moderadora do canal, usada so pra
-mandar mensagem no chat). O callback e compartilhado pelos dois fluxos - o
-"state" da URL de autorizacao carrega qual papel esta em andamento."""
+"bot" (conta separada tipo kakazimbot, usada so pra mandar mensagem no
+chat com o proprio User Access Token dela - nao precisa ser moderadora de
+canal nenhum, ver helix.enviar_mensagem_chat). O callback e compartilhado
+pelos dois fluxos - o "state" da URL de autorizacao carrega qual papel
+esta em andamento."""
 
 import secrets
 import threading
@@ -26,9 +28,10 @@ USERS_URL = "https://api.twitch.tv/helix/users"
 # helix.enviar_mensagem_chat).
 ESCOPOS_STREAMER = "channel:read:subscriptions moderator:read:followers user:read:chat"
 
-# Bot: conta separada (kakazimbot), ja moderadora/editora do canal do
-# streamer. user:write:chat manda a mensagem; user:bot e exigido pela Twitch
-# pra contas de bot postando em canal de terceiros (mesmo sendo moderadora).
+# Bot: conta separada (kakazimbot). user:write:chat manda a mensagem com o
+# User Access Token da propria conta bot (nao precisa ser moderadora do
+# canal de destino); user:bot e exigido pela Twitch pra contas de bot
+# postando em canal de terceiros.
 ESCOPOS_BOT = "user:write:chat user:bot"
 
 MARGEM_EXPIRACAO_MS = 2 * 60 * 1000

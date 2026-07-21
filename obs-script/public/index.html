@@ -43,8 +43,26 @@
     </section>
 
     <section class="coluna coluna--chat">
-      <h3>Chat</h3>
+      <div class="coluna-cabecalho">
+        <h3>Chat</h3>
+        <select id="chat-plataforma" class="seletor-plataforma" title="Plataforma de destino">
+          <option value="kick">Kick</option>
+          <option value="twitch">Twitch</option>
+        </select>
+      </div>
       <ul class="lista lista--chat" id="lista-chat"></ul>
+      <form class="form-chat" id="form-chat-enviar">
+        <input
+          type="text"
+          id="chat-mensagem"
+          class="chat-mensagem"
+          placeholder="Mandar mensagem..."
+          autocomplete="off"
+          maxlength="500"
+        />
+        <button type="submit">Enviar</button>
+      </form>
+      <p class="chat-enviar-status" id="chat-enviar-status"></p>
     </section>
 
     <section class="automacoes">

@@ -61,14 +61,20 @@ def enviar_mensagem_chat(mensagem, canal=None):
     """Manda mensagem no chat de um canal, autenticado como a conta bot
     separada (kakazimbot) - sender_id e' sempre do bot. `canal` (login da
     Twitch) define o destino; se omitido, cai pro canal autorizado como
-    "streamer" (retrocompatibilidade). Exige token do bot com escopos
-    user:write:chat + user:bot (ver /twitch/login?role=bot).
+    "streamer" (retrocompatibilidade). Exige token do bot (User Access
+    Token, via OAuth) com escopos user:write:chat + user:bot (ver
+    /twitch/login?role=bot).
 
-    Importante: a Twitch so aceita mandar mensagem num canal onde o bot NAO
-    e' moderador se o dono daquele canal tiver autorizado o escopo
-    channel:bot pro app - na pratica, cada canal de destino precisa ter
-    "kakazimbot" adicionado como moderador (/mod kakazimbot no chat dele)
-    antes de funcionar. Sem isso, a Twitch recusa com 401/403.
+    Importante: como isso usa um User Access Token da propria conta do
+    kakazimbot (nao um App Access Token), a Twitch so exige o escopo
+    user:write:chat - nao precisa o dono do canal de destino adicionar
+    "kakazimbot" como moderador nem autorizar o escopo channel:bot (essa
+    exigencia so existe pra quem manda mensagem com App Access Token). Na
+    pratica, o kakazimbot entra no chat como um usuario comum, entao esta
+    sujeito as mesmas regras do canal de destino que qualquer chatter:
+    modo somente-seguidores, somente-assinantes, slow mode, palavra
+    bloqueada pelo AutoMod, ou o proprio kakazimbot estar banido/bloqueado
+    naquele canal especifico.
     """
     if canal:
         usuario = buscar_usuario_por_login(canal)
@@ -94,9 +100,17 @@ def enviar_mensagem_chat(mensagem, canal=None):
     try:
         return requisitar(f"{HELIX_BASE}/chat/messages", method="POST", headers=headers, dados_json=dados_json)
     except ErroHttp as erro:
-        if erro.status in (401, 403):
+        if erro.status == 401:
             raise RuntimeError(
-                f'Sem permissão pra mandar mensagem nesse canal - peça pro dono adicionar "kakazimbot" como '
-                f"moderador ({erro.status}): {erro.corpo}"
+                f"Token do kakazimbot expirado ou sem o escopo user:write:chat - reautorize clicando em "
+                f'"Autorizar Twitch (bot)" ({erro.status}): {erro.corpo}'
+            ) from erro
+        if erro.status == 403:
+            raise RuntimeError(
+                f"Twitch recusou a mensagem nesse canal ({erro.status}): {erro.corpo}. O kakazimbot manda "
+                f"mensagem como um usuário comum entrando no chat, então está sujeito às mesmas regras do canal "
+                f"de destino que qualquer chatter enfrentaria - confira se esse canal está com modo "
+                f"somente-seguidores, somente-assinantes, slow mode, alguma palavra bloqueada pelo AutoMod, ou "
+                f"se o kakazimbot está banido/bloqueado especificamente nele."
             ) from erro
         raise RuntimeError(f"Falha ao enviar mensagem no chat da Twitch ({erro.status}): {erro.corpo}") from erro

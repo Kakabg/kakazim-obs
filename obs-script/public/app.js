@@ -20,17 +20,29 @@ function formatarTempoRelativo(timestampMs) {
   return new Date(timestampMs).toLocaleDateString('pt-BR');
 }
 
+const LETRA_POR_PLATAFORMA = { kick: 'K', twitch: 'T', streamelements: '$' };
+
 function iconeMini(plataforma) {
   const span = document.createElement('span');
   span.className = `icone-plataforma-mini ${plataforma}`;
-  span.textContent = plataforma === 'kick' ? 'K' : 'T';
+  span.textContent = LETRA_POR_PLATAFORMA[plataforma] ?? '?';
   return span;
 }
 
 function textoAtividade(item) {
   if (item.tipo === 'seguidor') return 'seguiu o canal';
-  if (item.tipo === 'inscricao') return item.detalhe ? `se inscreveu (${item.detalhe})` : 'se inscreveu';
+  if (item.tipo === 'inscricao') {
+    // Resub da Twitch já vem com o detalhe pronto pra virar a frase inteira
+    // ("renovou por X meses: mensagem") - "se inscreveu (renovou por...)"
+    // ficava redundante. Kick e a primeira inscrição (com/sem presente)
+    // continuam como antes.
+    if (item.plataforma === 'twitch' && (item.detalhe === 'renovação' || item.detalhe?.startsWith('renovou por'))) {
+      return item.detalhe;
+    }
+    return item.detalhe ? `se inscreveu (${item.detalhe})` : 'se inscreveu';
+  }
   if (item.tipo === 'raid') return item.detalhe ? `fez raid com ${item.detalhe} viewers` : 'fez raid';
+  if (item.tipo === 'doacao') return item.detalhe ? `doou ${item.detalhe}` : 'doou';
   return item.tipo;
 }
 
@@ -166,6 +178,14 @@ function adicionarChat(item, { autoScroll = true } = {}) {
   if (autoScroll) lista.scrollTop = lista.scrollHeight;
 }
 
+// Só o texto mostrado na tela - o identificador interno ("nome", usado como
+// chave de estado.automacoes e em data-nome) continua sendo o mesmo que a
+// API de status já usa (cs2-scene-switcher, clipador).
+const ROTULOS_AUTOMACAO = {
+  'cs2-scene-switcher': 'CS-Auto',
+  clipador: 'Clipador',
+};
+
 function atualizarAutomacao(nome, dados) {
   const lista = document.getElementById('lista-automacoes');
   let chip = lista.querySelector(`[data-nome="${nome}"]`);
@@ -178,8 +198,9 @@ function atualizarAutomacao(nome, dados) {
     lista.appendChild(chip);
   }
 
+  const rotulo = ROTULOS_AUTOMACAO[nome] ?? nome;
   chip.dataset.ligado = String(Boolean(dados.ligado));
-  chip.querySelector('.rotulo').textContent = `${nome}: ${dados.ligado ? 'ligado' : 'desligado'}`;
+  chip.querySelector('.rotulo').textContent = `${rotulo}: ${dados.ligado ? 'ligado' : 'desligado'}`;
 }
 
 function renderizarSnapshot(estado) {
@@ -240,6 +261,50 @@ function conectar() {
   });
 }
 
+// Caixa de texto embaixo do Chat - manda pro canal do próprio streamer, na
+// plataforma escolhida no seletor ao lado do cabeçalho "Chat"
+// (POST /api/chat/mensagem, ver kakazim_panel/http_server.py). A mensagem
+// enviada não é ecoada aqui na hora: ela chega pelo mesmo caminho de sempre
+// (relay da Kick / EventSub da Twitch) alguns instantes depois, igual
+// qualquer outra mensagem do chat - mandar e já mostrar na lista faria
+// duplicar quando o evento de verdade chegasse.
+function configurarEnvioChat() {
+  const form = document.getElementById('form-chat-enviar');
+  const input = document.getElementById('chat-mensagem');
+  const seletor = document.getElementById('chat-plataforma');
+  const status = document.getElementById('chat-enviar-status');
+
+  form.addEventListener('submit', async (evento) => {
+    evento.preventDefault();
+    const mensagem = input.value.trim();
+    if (!mensagem) return;
+
+    input.disabled = true;
+    status.dataset.erro = 'false';
+    status.textContent = 'Enviando…';
+
+    try {
+      const resposta = await fetch('/api/chat/mensagem', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plataforma: seletor.value, message: mensagem }),
+      });
+      const corpo = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(corpo.erro || `Falha ao enviar (HTTP ${resposta.status})`);
+
+      input.value = '';
+      status.textContent = '';
+    } catch (erro) {
+      status.dataset.erro = 'true';
+      status.textContent = erro.message || String(erro);
+    } finally {
+      input.disabled = false;
+      input.focus();
+    }
+  });
+}
+
 document.getElementById('lista-atividades').addEventListener('scroll', aoRolarListaAtividades);
 setInterval(atualizarTemposRelativos, INTERVALO_ATUALIZACAO_TEMPO_MS);
+configurarEnvioChat();
 conectar();

@@ -6,6 +6,7 @@
   --texto-fraco: #8b8d9c;
   --kick: #53fc18;
   --twitch: #9146ff;
+  --streamelements: #2dd4bf;
   --vermelho: #ff4757;
   --verde: #2ecc71;
   font-size: 15px;
@@ -153,6 +154,81 @@ body {
   color: var(--texto-fraco);
 }
 
+/* --- Cabeçalho do Chat (título + seletor de plataforma) --- */
+
+.coluna-cabecalho {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.coluna-cabecalho h3 {
+  margin: 0;
+}
+
+.seletor-plataforma {
+  background: var(--bg);
+  color: var(--texto);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  font-family: inherit;
+}
+
+/* --- Caixa de envio de mensagem do Chat --- */
+
+.form-chat {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-shrink: 0;
+}
+
+.chat-mensagem {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg);
+  color: var(--texto);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  font-family: inherit;
+}
+
+.chat-mensagem:focus {
+  outline: none;
+  border-color: var(--texto-fraco);
+}
+
+.form-chat button {
+  background: var(--card-bg);
+  color: var(--texto);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.form-chat button:hover {
+  border-color: var(--texto-fraco);
+}
+
+.chat-enviar-status {
+  margin: 4px 0 0;
+  font-size: 0.72rem;
+  color: var(--texto-fraco);
+  min-height: 1em;
+}
+
+.chat-enviar-status[data-erro="true"] {
+  color: var(--vermelho);
+}
+
 .lista {
   list-style: none;
   margin: 0;
@@ -191,6 +267,7 @@ body {
 
 .icone-plataforma-mini.kick { background: var(--kick); }
 .icone-plataforma-mini.twitch { background: var(--twitch); color: #fff; }
+.icone-plataforma-mini.streamelements { background: var(--streamelements); color: #fff; }
 
 .item-usuario { font-weight: 600; }
 
