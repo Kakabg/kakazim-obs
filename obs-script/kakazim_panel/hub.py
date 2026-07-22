@@ -13,6 +13,7 @@ from .automations.cs2_scene_switcher import MonitorCs2SceneSwitcher
 from .kick import stats as kick_stats
 from .kick.relay_client import ClienteRelayKick
 from .twitch import comandos_chat as twitch_comandos_chat
+from .twitch import contagem_mensagens as twitch_contagem_mensagens
 from .twitch import helix as twitch_helix
 from .twitch import oauth as twitch_oauth
 from .twitch.eventsub import ClienteEventSub
@@ -174,6 +175,9 @@ def _tratar_evento_twitch(tipo, evento):
             }
         )
         _responder_comando_chat_twitch(evento.get("chatter_user_id"), mensagem)
+        twitch_contagem_mensagens.registrar_mensagem_chat(
+            evento.get("chatter_user_id"), evento.get("chatter_user_name")
+        )
 
 
 def _responder_comando_chat_twitch(chatter_user_id, mensagem):
