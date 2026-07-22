@@ -35,7 +35,18 @@ _estado = {
     "kick": {"aoVivo": False, "viewers": 0, "seguidores": None, "inscritos": None},
     "atividades": [],
     "chat": [],
-    "automacoes": {},
+    # Pre-semeado com os dois nomes conhecidos hoje - cs2-scene-switcher já
+    # aparecia "sempre" na prática porque seu monitor de polling atualiza o
+    # estado poucos ms depois do boot (ver _iniciar_automacoes), mas clipador
+    # só existe aqui depois do primeiro POST /api/automations/clipador/status
+    # (reportar_status_automacao) - sem esse valor default, o chip dele só
+    # aparecia na tela depois de ligar/desligar pela 1a vez. Chave nova de
+    # automação futura sem monitor de polling nem push ainda tem esse mesmo
+    # problema - adicione aqui também.
+    "automacoes": {
+        "cs2-scene-switcher": {"ligado": False},
+        "clipador": {"ligado": False},
+    },
 }
 
 _clientes_sse = set()  # de queue.Queue

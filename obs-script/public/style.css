@@ -25,10 +25,13 @@ body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-template-rows: auto 1fr auto;
+  /* Chat na esquerda (mais alto - ocupa as 2 linhas de baixo somadas) e
+     Atividade recente + Automações empilhados na direita, uma embaixo da
+     outra. */
   grid-template-areas:
     "stats stats"
-    "feed chat"
-    "automacoes automacoes";
+    "chat feed"
+    "chat automacoes";
   gap: 12px;
   padding: 12px;
   height: 100vh;
@@ -308,8 +311,6 @@ body {
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 6px 10px;
-  width: fit-content;
-  justify-self: start;
 }
 
 .automacoes h3 {
