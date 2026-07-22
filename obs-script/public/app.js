@@ -29,6 +29,33 @@ function iconeMini(plataforma) {
   return span;
 }
 
+// Perfil na própria plataforma, a partir do mesmo indicador (K/T) que já
+// identifica cada linha - StreamElements não entra aqui (doação não tem
+// perfil de Kick/Twitch garantido por trás do nome mostrado).
+const URL_PERFIL_POR_PLATAFORMA = {
+  kick: (usuario) => `https://kick.com/${encodeURIComponent(usuario)}`,
+  twitch: (usuario) => `https://www.twitch.tv/${encodeURIComponent(usuario)}`,
+};
+
+function criarNomeUsuario(item) {
+  const montarUrl = URL_PERFIL_POR_PLATAFORMA[item.plataforma];
+
+  if (!item.usuario || !montarUrl) {
+    const span = document.createElement('span');
+    span.className = 'item-usuario';
+    span.textContent = item.usuario || '(anônimo)';
+    return span;
+  }
+
+  const link = document.createElement('a');
+  link.className = 'item-usuario';
+  link.href = montarUrl(item.usuario);
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = item.usuario;
+  return link;
+}
+
 function textoAtividade(item) {
   if (item.tipo === 'seguidor') return 'seguiu o canal';
   if (item.tipo === 'inscricao') {
@@ -64,11 +91,7 @@ function criarItemAtividade(item) {
   const li = document.createElement('li');
   li.dataset.timestamp = String(item.timestamp);
   li.appendChild(iconeMini(item.plataforma));
-
-  const usuario = document.createElement('span');
-  usuario.className = 'item-usuario';
-  usuario.textContent = item.usuario || '(anônimo)';
-  li.appendChild(usuario);
+  li.appendChild(criarNomeUsuario(item));
 
   const detalhe = document.createElement('span');
   detalhe.className = 'item-detalhe';
@@ -150,9 +173,7 @@ function adicionarChat(item, { autoScroll = true } = {}) {
   const li = document.createElement('li');
   li.appendChild(iconeMini(item.plataforma));
 
-  const usuario = document.createElement('span');
-  usuario.className = 'item-usuario';
-  usuario.textContent = item.usuario || '(anônimo)';
+  const usuario = criarNomeUsuario(item);
   if (item.cor) usuario.style.color = item.cor;
   li.appendChild(usuario);
 
