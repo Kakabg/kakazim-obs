@@ -187,7 +187,10 @@ def _tratar_evento_twitch(tipo, evento):
         )
         _responder_comando_chat_twitch(evento.get("chatter_user_id"), mensagem)
         twitch_contagem_mensagens.registrar_mensagem_chat(
-            evento.get("chatter_user_id"), evento.get("chatter_user_name")
+            evento.get("chatter_user_id"),
+            evento.get("chatter_user_name"),
+            mensagem=mensagem,
+            cor=evento.get("color"),
         )
 
 

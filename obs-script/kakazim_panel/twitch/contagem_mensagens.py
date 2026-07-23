@@ -15,10 +15,14 @@ from .. import config
 from ..http_util import ErroHttp, montar_url, requisitar
 
 
-def registrar_mensagem_chat(twitch_user_id, twitch_username):
+def registrar_mensagem_chat(twitch_user_id, twitch_username, mensagem=None, cor=None):
     """Falha aqui não deve derrubar o processamento normal do chat (comando
     automático etc.) - só significa que essa mensagem não contou pra quest
-    dessa vez (silencioso de propósito, mesmo padrão de comandos_chat.py)."""
+    dessa vez (silencioso de propósito, mesmo padrão de comandos_chat.py).
+
+    mensagem/cor são opcionais e servem só pra alimentar o buffer de chat do
+    Kakaverso (kakazim-bot: chat/buffer.js) - sem eles o kakazim-bot ainda
+    incrementa a contagem normalmente, só não aparece no chat do painel."""
     if not twitch_user_id:
         return
 
@@ -26,11 +30,13 @@ def registrar_mensagem_chat(twitch_user_id, twitch_username):
         f"{config.url_base_kakazim_bot()}/api/mensagem-chat/twitch",
         {"key": config.obter("kick_relay_secret")},
     )
+    dados = {"twitchUserId": str(twitch_user_id), "twitchUsername": twitch_username}
+    if mensagem:
+        dados["message"] = mensagem
+    if cor:
+        dados["color"] = cor
+
     try:
-        requisitar(
-            url,
-            method="POST",
-            dados_json={"twitchUserId": str(twitch_user_id), "twitchUsername": twitch_username},
-        )
+        requisitar(url, method="POST", dados_json=dados)
     except (ErroHttp, OSError) as erro:
         print(f"[Twitch] Falha ao registrar mensagem de chat pra quests: {erro}")
