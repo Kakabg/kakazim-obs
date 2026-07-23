@@ -12,6 +12,7 @@ from . import config, store
 from .automations.cs2_scene_switcher import MonitorCs2SceneSwitcher
 from .kick import stats as kick_stats
 from .kick.relay_client import ClienteRelayKick
+from .twitch import anuncios_conquistas as twitch_anuncios_conquistas
 from .twitch import comandos_chat as twitch_comandos_chat
 from .twitch import contagem_mensagens as twitch_contagem_mensagens
 from .twitch import helix as twitch_helix
@@ -20,8 +21,15 @@ from .twitch.eventsub import ClienteEventSub
 
 INTERVALO_VIEWERS_S = 15
 INTERVALO_TOTAIS_S = 60
+INTERVALO_ANUNCIOS_S = 20
 INTERVALO_FALHA_MINIMO_S = 45
 INTERVALO_PODA_CHAT_S = 60 * 60
+
+# Intervalo entre mensagens quando mais de um anúncio (bônus + conquista, ou
+# várias conquistas de uma vez) precisa ser mandado em sequência - evita
+# postar tudo grudado (mesmo espírito do lado da Kick, ver kakazim-bot/
+# server.js: processarMensagemChatKick).
+INTERVALO_ENTRE_ANUNCIOS_S = 1.2
 
 # Quantos itens de historico mandar no snapshot inicial (SSE "message" tipo
 # snapshot) - o resto do historico completo (agora sem limite, ver store.py)
@@ -198,12 +206,17 @@ def _tratar_evento_twitch(tipo, evento):
                 mensagem=mensagem,
                 cor=evento.get("color"),
             )
-            texto_resposta = (resposta or {}).get("responder")
-            if texto_resposta:
+            # Lista, não texto único - bônus de boas-vindas e conquista(s)
+            # podem vir juntos na mesma mensagem (ver kakazim-bot: banco/
+            # quests.js, comentário em montarAnuncioConquista).
+            textos_resposta = (resposta or {}).get("responder") or []
+            for indice, texto in enumerate(textos_resposta):
+                if indice > 0:
+                    time.sleep(INTERVALO_ENTRE_ANUNCIOS_S)
                 try:
-                    twitch_helix.enviar_mensagem_chat(texto_resposta)
+                    twitch_helix.enviar_mensagem_chat(texto)
                 except Exception as erro:
-                    print(f"[Twitch] Falha ao enviar mensagem de bônus de boas-vindas: {erro}")
+                    print(f"[Twitch] Falha ao enviar bônus/anúncio de conquista: {erro}")
 
 
 def _eh_mensagem_do_bot(chatter_user_id):
@@ -262,8 +275,20 @@ def _iniciar_twitch():
         inscritos = twitch_helix.buscar_total_inscritos()
         _atualizar_stats("twitch", {"seguidores": seguidores, "inscritos": inscritos})
 
+    def verificar_anuncios_pendentes():
+        # Conquista de CLIPE (detectada no polling do kakazim-bot, sem
+        # request nosso em andamento) - ver twitch/anuncios_conquistas.py.
+        for indice, texto in enumerate(twitch_anuncios_conquistas.buscar_anuncios_pendentes()):
+            if indice > 0:
+                time.sleep(INTERVALO_ENTRE_ANUNCIOS_S)
+            try:
+                twitch_helix.enviar_mensagem_chat(texto)
+            except Exception as erro:
+                print(f"[Twitch] Falha ao enviar anúncio de conquista pendente: {erro}")
+
     _iniciar_loop_periodico(atualizar_viewers, INTERVALO_VIEWERS_S, "twitch-viewers")
     _iniciar_loop_periodico(atualizar_totais, INTERVALO_TOTAIS_S, "twitch-totais")
+    _iniciar_loop_periodico(verificar_anuncios_pendentes, INTERVALO_ANUNCIOS_S, "twitch-anuncios")
 
     global _eventsub_cliente
     _eventsub_cliente = ClienteEventSub(_tratar_evento_twitch)
