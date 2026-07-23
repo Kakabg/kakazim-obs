@@ -186,21 +186,56 @@ def _tratar_evento_twitch(tipo, evento):
             }
         )
         _responder_comando_chat_twitch(evento.get("chatter_user_id"), mensagem)
-        twitch_contagem_mensagens.registrar_mensagem_chat(
-            evento.get("chatter_user_id"),
-            evento.get("chatter_user_name"),
-            mensagem=mensagem,
-            cor=evento.get("color"),
-        )
+
+        # Conta do próprio bot ou do próprio streamer não conta pra quests
+        # nem dispara o bônus de "primeira mensagem da vida" (ver
+        # contagem_mensagens.py) - não faz sentido o dono do canal ou o bot
+        # ganharem o bônus de boas-vindas no próprio chat.
+        if not _eh_conta_do_proprio_canal(evento.get("chatter_user_id")):
+            resposta = twitch_contagem_mensagens.registrar_mensagem_chat(
+                evento.get("chatter_user_id"),
+                evento.get("chatter_user_name"),
+                mensagem=mensagem,
+                cor=evento.get("color"),
+            )
+            texto_resposta = (resposta or {}).get("responder")
+            if texto_resposta:
+                try:
+                    twitch_helix.enviar_mensagem_chat(texto_resposta)
+                except Exception as erro:
+                    print(f"[Twitch] Falha ao enviar mensagem de bônus de boas-vindas: {erro}")
+
+
+def _eh_mensagem_do_bot(chatter_user_id):
+    """Só o próprio kakazimbot (conta bot autorizada via /twitch/login?
+    role=bot) - evita loop de comando automático respondendo a si mesmo."""
+    if chatter_user_id is None:
+        return False
+    tokens_bot = store.buscar_tokens_twitch("bot")
+    bot_user_id = tokens_bot.get("userId")
+    return bool(bot_user_id) and str(chatter_user_id) == str(bot_user_id)
+
+
+def _eh_conta_do_proprio_canal(chatter_user_id):
+    """Bot OU o próprio streamer (conta autorizada como canal principal) -
+    usado só pra não contar mensagem/bônus de boas-vindas do dono do canal
+    (diferente de _eh_mensagem_do_bot: comando automático continua
+    respondendo o streamer normalmente, só o bônus/quest é que não faz
+    sentido pro dono do próprio chat)."""
+    if _eh_mensagem_do_bot(chatter_user_id):
+        return True
+
+    try:
+        return str(chatter_user_id) == str(twitch_helix.broadcaster_user_id())
+    except RuntimeError:
+        return False
 
 
 def _responder_comando_chat_twitch(chatter_user_id, mensagem):
     """Comando de resposta automática (aba admin "kakazim.bot" do
     Kakaverso). Não responde mensagem do próprio kakazimbot - evita loop
     (comparando com a conta bot autorizada via /twitch/login?role=bot)."""
-    tokens_bot = store.buscar_tokens_twitch("bot")
-    bot_user_id = tokens_bot.get("userId")
-    if bot_user_id and str(chatter_user_id) == str(bot_user_id):
+    if _eh_mensagem_do_bot(chatter_user_id):
         return
 
     resposta = twitch_comandos_chat.buscar_resposta_comando(mensagem)

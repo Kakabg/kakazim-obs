@@ -19,12 +19,17 @@ def registrar_mensagem_chat(twitch_user_id, twitch_username, mensagem=None, cor=
     """Falha aqui não deve derrubar o processamento normal do chat (comando
     automático etc.) - só significa que essa mensagem não contou pra quest
     dessa vez (silencioso de propósito, mesmo padrão de comandos_chat.py).
+    Retorna None em caso de falha, ou o corpo JSON da resposta do kakazim-bot
+    em caso de sucesso - ver hub.py: pode vir um campo opcional "responder"
+    (texto do bônus de boas-vindas na primeira mensagem da vida da pessoa,
+    ver kakazim-bot: banco/pontos.js:creditarBonusPrimeiraMensagem) que o
+    chamador manda pro chat via twitch_helix.enviar_mensagem_chat.
 
     mensagem/cor são opcionais e servem só pra alimentar o buffer de chat do
     Kakaverso (kakazim-bot: chat/buffer.js) - sem eles o kakazim-bot ainda
     incrementa a contagem normalmente, só não aparece no chat do painel."""
     if not twitch_user_id:
-        return
+        return None
 
     url = montar_url(
         f"{config.url_base_kakazim_bot()}/api/mensagem-chat/twitch",
@@ -37,6 +42,7 @@ def registrar_mensagem_chat(twitch_user_id, twitch_username, mensagem=None, cor=
         dados["color"] = cor
 
     try:
-        requisitar(url, method="POST", dados_json=dados)
+        return requisitar(url, method="POST", dados_json=dados)
     except (ErroHttp, OSError) as erro:
         print(f"[Twitch] Falha ao registrar mensagem de chat pra quests: {erro}")
+        return None
