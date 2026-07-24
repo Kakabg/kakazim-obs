@@ -17,6 +17,7 @@ from .twitch import comandos_chat as twitch_comandos_chat
 from .twitch import contagem_mensagens as twitch_contagem_mensagens
 from .twitch import helix as twitch_helix
 from .twitch import oauth as twitch_oauth
+from .twitch import sorteio as twitch_sorteio
 from .twitch.eventsub import ClienteEventSub
 
 INTERVALO_VIEWERS_S = 15
@@ -194,6 +195,21 @@ def _tratar_evento_twitch(tipo, evento):
             }
         )
         _responder_comando_chat_twitch(evento.get("chatter_user_id"), mensagem)
+
+        # !sorteio funciona pra QUALQUER UM, incluindo o streamer (precisa
+        # conseguir testar/participar) - por isso fica fora do "if not
+        # _eh_conta_do_proprio_canal" abaixo, só excluindo o próprio bot
+        # (evita ele "participar" ao ecoar o próprio texto, embora isso não
+        # devesse acontecer de qualquer forma).
+        if not _eh_mensagem_do_bot(evento.get("chatter_user_id")) and (mensagem or "").strip().lower() == "!sorteio":
+            texto_sorteio = twitch_sorteio.processar_comando_sorteio(
+                evento.get("chatter_user_id"), evento.get("chatter_user_name")
+            )
+            if texto_sorteio:
+                try:
+                    twitch_helix.enviar_mensagem_chat(texto_sorteio)
+                except Exception as erro:
+                    print(f"[Twitch] Falha ao enviar resposta do !sorteio: {erro}")
 
         # Conta do próprio bot ou do próprio streamer não conta pra quests
         # nem dispara o bônus de "primeira mensagem da vida" (ver
