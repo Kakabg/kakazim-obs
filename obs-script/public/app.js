@@ -20,12 +20,16 @@ function formatarTempoRelativo(timestampMs) {
   return new Date(timestampMs).toLocaleDateString('pt-BR');
 }
 
-const LETRA_POR_PLATAFORMA = { kick: 'K', twitch: 'T', streamelements: '$' };
+// Kick/Twitch mostram o ícone de marca de verdade via mask-image em CSS (ver
+// style.css) - sem letra. StreamElements continua no monograma de letra.
+const LETRA_POR_PLATAFORMA = { streamelements: '$' };
 
 function iconeMini(plataforma) {
   const span = document.createElement('span');
   span.className = `icone-plataforma-mini ${plataforma}`;
-  span.textContent = LETRA_POR_PLATAFORMA[plataforma] ?? '?';
+  span.setAttribute('aria-hidden', 'true');
+  const letra = LETRA_POR_PLATAFORMA[plataforma];
+  if (letra) span.textContent = letra;
   return span;
 }
 

@@ -106,20 +106,30 @@ body {
   flex: 1;
 }
 
+/* Ícone de marca de verdade (Tabler Icons, mesma técnica de mask-image do
+   .icone-plataforma-mini acima) - sem fundo/círculo, só a cor da marca. */
 .plataforma-icone {
   width: 18px;
   height: 18px;
-  border-radius: 5px;
   display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  font-size: 0.75rem;
-  color: #0d0e13;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
 }
 
-.plataforma-icone--kick { background: var(--kick); }
-.plataforma-icone--twitch { background: var(--twitch); color: #fff; }
+.plataforma-icone--kick {
+  background-color: var(--kick);
+  -webkit-mask-image: url('vendor/tabler-icons/brand-kick.svg');
+  mask-image: url('vendor/tabler-icons/brand-kick.svg');
+}
+.plataforma-icone--twitch {
+  background-color: var(--twitch);
+  -webkit-mask-image: url('vendor/tabler-icons/brand-twitch.svg');
+  mask-image: url('vendor/tabler-icons/brand-twitch.svg');
+}
 
 .ao-vivo {
   font-size: 0.6rem;
@@ -298,8 +308,30 @@ body {
   color: #0d0e13;
 }
 
-.icone-plataforma-mini.kick { background: var(--kick); }
-.icone-plataforma-mini.twitch { background: var(--twitch); color: #fff; }
+/* Kick/Twitch usam o ícone de marca de verdade (Tabler Icons, estilo linha
+   fina, self-hosted em vendor/tabler-icons/) via mask-image - a cor vem do
+   background (mask recorta a forma, o background é o que aparece), sem
+   fundo/círculo. StreamElements continua no monograma de letra. */
+.icone-plataforma-mini.kick,
+.icone-plataforma-mini.twitch {
+  background-color: var(--icone-cor);
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+.icone-plataforma-mini.kick {
+  --icone-cor: var(--kick);
+  -webkit-mask-image: url('vendor/tabler-icons/brand-kick.svg');
+  mask-image: url('vendor/tabler-icons/brand-kick.svg');
+}
+.icone-plataforma-mini.twitch {
+  --icone-cor: var(--twitch);
+  -webkit-mask-image: url('vendor/tabler-icons/brand-twitch.svg');
+  mask-image: url('vendor/tabler-icons/brand-twitch.svg');
+}
 .icone-plataforma-mini.streamelements { background: var(--streamelements); color: #fff; }
 
 .item-usuario { font-weight: 600; }
