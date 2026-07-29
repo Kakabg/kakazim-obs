@@ -32,10 +32,9 @@ ARQUIVOS_ESTATICOS = {
 }
 
 # Mecanismo generico de push pra automacoes locais sem servidor HTTP proprio
-# (ex: Clipador, kakazim-live) reportarem o proprio status - alternativa ao
-# monitor de polling do cs2-scene-switcher (que ja roda seu proprio servidor
-# HTTP pro GSI e so precisou ganhar um GET /status nele). Ver
-# hub.reportar_status_automacao.
+# reportarem o proprio status - alternativa ao monitor de polling do
+# cs2-scene-switcher (que ja roda seu proprio servidor HTTP pro GSI e so
+# precisou ganhar um GET /status nele). Ver hub.reportar_status_automacao.
 PADRAO_STATUS_AUTOMACAO = re.compile(r"^/api/automations/([a-z0-9-]+)/status$")
 
 # Única rota chamada por JS rodando numa página de outro ORIGIN (o callback

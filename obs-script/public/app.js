@@ -217,10 +217,10 @@ function adicionarChat(item, { autoScroll = true } = {}) {
 
 // Só o texto mostrado na tela - o identificador interno ("nome", usado como
 // chave de estado.automacoes e em data-nome) continua sendo o mesmo que a
-// API de status já usa (cs2-scene-switcher, clipador).
+// API de status já usa (cs2-scene-switcher). Automação futura sem rótulo
+// aqui cai no próprio "nome" cru (ver fallback abaixo).
 const ROTULOS_AUTOMACAO = {
   'cs2-scene-switcher': 'CS-Auto',
-  clipador: 'Clipador',
 };
 
 function atualizarAutomacao(nome, dados) {

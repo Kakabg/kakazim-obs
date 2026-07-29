@@ -93,31 +93,25 @@ Property Inspector, default `3211`) - se você mudou esse valor lá, ajuste
 também o campo "Automação CS2: URL de status" nas configurações deste
 script pra apontar pra mesma porta.
 
-## Sobre o status do Clipador
+## Sobre o endpoint genérico de status de automação
 
-Generalizei o mecanismo acima em vez de duplicar um monitor de polling pro
-Clipador: o CS2 Scene Switcher já roda seu próprio servidor HTTP local (pro
-GSI), então fazia sentido esse painel *sondar* (`GET /status`) esse servidor.
-O Clipador (`kakazim-live/src/actions/clipador`) não roda servidor HTTP
-nenhum - é só um botão do Stream Deck que liga/desliga uma sessão persistida
-em disco. Pra esse caso, o caminho inverso é mais simples: o Clipador
-*empurra* o próprio status pra cá.
+Além do monitor de polling do CS2 Scene Switcher acima (esse painel *sonda*
+`GET /status` no servidor HTTP local dele), existe um caminho inverso pra
+automações sem servidor HTTP próprio: elas *empurram* o próprio status pra
+cá.
 
-- `kakazim_panel/hub.py`: nova função pública `reportar_status_automacao(nome,
+- `kakazim_panel/hub.py`: função pública `reportar_status_automacao(nome,
   dados)`, que cai no mesmo `_atualizar_automacao` que o monitor de polling do
-  CS2 já usava - o frontend (`public/app.js`) já tratava "nome" de forma
-  genérica, então o chip "clipador: ligado/desligado" aparece na Automações
-  sem precisar mexer em HTML/CSS/JS nenhum.
-- `kakazim_panel/http_server.py`: nova rota `POST /api/automations/<nome>/
-  status`, body `{"ligado": true|false}` (`<nome>` livre, só letras
-  minúsculas/números/hífen). É o mesmo endpoint que qualquer automação futura
-  sem servidor HTTP próprio pode usar - não é exclusivo do Clipador.
-- Do lado do `kakazim-live`, a action "Clipador Toggle" chama esse endpoint
-  (`http://127.0.0.1:<porta do painel>/api/automations/clipador/status`)
-  sempre que a sessão liga/desliga - manualmente pelo botão, ou sozinha
-  quando o encerramento automático por live offline dispara. Ver o resumo
-  final da conversa pros detalhes de onde isso entrou no código do
-  `kakazim-live`.
+  CS2 já usava - o frontend (`public/app.js`) trata "nome" de forma genérica,
+  então um chip "<nome>: ligado/desligado" aparece na Automações sem precisar
+  mexer em HTML/CSS/JS.
+- `kakazim_panel/http_server.py`: rota `POST /api/automations/<nome>/status`,
+  body `{"ligado": true|false}` (`<nome>` livre, só letras
+  minúsculas/números/hífen).
+
+(O Clipador foi o motivador original desse mecanismo, quando ainda era um
+botão do Stream Deck que ligava/desligava uma sessão local - hoje ele roda
+sempre ativo no kakazim-bot e não aparece mais nas Automações daqui.)
 
 ## Sobre a conta pessoal (Kakabg) na caixa de chat do painel (leia isso)
 

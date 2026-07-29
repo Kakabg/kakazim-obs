@@ -49,17 +49,14 @@ _estado = {
     "discord": {"mutado": None},
     "atividades": [],
     "chat": [],
-    # Pre-semeado com os dois nomes conhecidos hoje - cs2-scene-switcher já
-    # aparecia "sempre" na prática porque seu monitor de polling atualiza o
-    # estado poucos ms depois do boot (ver _iniciar_automacoes), mas clipador
-    # só existe aqui depois do primeiro POST /api/automations/clipador/status
-    # (reportar_status_automacao) - sem esse valor default, o chip dele só
-    # aparecia na tela depois de ligar/desligar pela 1a vez. Chave nova de
-    # automação futura sem monitor de polling nem push ainda tem esse mesmo
-    # problema - adicione aqui também.
+    # Pre-semeado com o nome conhecido hoje - cs2-scene-switcher já aparece
+    # "sempre" na prática porque seu monitor de polling atualiza o estado
+    # poucos ms depois do boot (ver _iniciar_automacoes). Automação futura que
+    # só reporta por push (reportar_status_automacao, sem monitor de polling
+    # daqui) só aparece na tela depois de ligar/desligar pela 1a vez, a menos
+    # que também ganhe um valor default aqui.
     "automacoes": {
         "cs2-scene-switcher": {"ligado": False},
-        "clipador": {"ligado": False},
     },
 }
 
@@ -123,8 +120,8 @@ def _atualizar_automacao(nome, dados):
 
 def reportar_status_automacao(nome, dados):
     """Ponto de entrada publico pra automacoes que reportam o proprio status
-    por push (ex: Clipador, kakazim-live - ver POST /api/automations/<nome>/
-    status em http_server.py) em vez de serem sondadas por um monitor daqui
+    por push (ver POST /api/automations/<nome>/status em http_server.py) em
+    vez de serem sondadas por um monitor daqui
     (como o cs2-scene-switcher, ver automations/cs2_scene_switcher.py). Cai
     no mesmo _atualizar_automacao que os monitores de polling usam - o
     frontend (public/app.js) ja trata "nome" de forma generica.
