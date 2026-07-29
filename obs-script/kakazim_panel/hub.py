@@ -25,7 +25,7 @@ INTERVALO_TOTAIS_S = 60
 INTERVALO_ANUNCIOS_S = 20
 INTERVALO_FALHA_MINIMO_S = 45
 INTERVALO_PODA_CHAT_S = 60 * 60
-INTERVALO_DISCORD_S = 10
+INTERVALO_DISCORD_S = 3
 
 # Intervalo entre mensagens quando mais de um anúncio (bônus + conquista, ou
 # várias conquistas de uma vez) precisa ser mandado em sequência - evita
