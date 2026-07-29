@@ -87,6 +87,18 @@ function atualizarCard(plataforma, dados) {
   }
 }
 
+// mutado: true|false|null (null = desconhecido, ver hub.py). Indicador ainda
+// não validado com uma live de verdade (relatos de bug do voiceStateUpdate
+// em algumas versões do discord.js - ver kakazim-bot: discord/muteStatus.js).
+function atualizarDiscordIndicador(dados) {
+  const indicador = document.getElementById('indicador-discord');
+  if (!indicador || !dados || !('mutado' in dados)) return;
+
+  const mutado = dados.mutado;
+  indicador.dataset.mutado = mutado === true ? 'true' : mutado === false ? 'false' : 'desconhecido';
+  indicador.querySelector('.rotulo').textContent = mutado === true ? 'Mutado' : mutado === false ? 'Ativo' : 'Discord';
+}
+
 function criarItemAtividade(item) {
   const li = document.createElement('li');
   li.dataset.timestamp = String(item.timestamp);
@@ -227,6 +239,7 @@ function atualizarAutomacao(nome, dados) {
 function renderizarSnapshot(estado) {
   atualizarCard('kick', estado.kick);
   atualizarCard('twitch', estado.twitch);
+  atualizarDiscordIndicador(estado.discord);
 
   const listaAtividades = document.getElementById('lista-atividades');
   listaAtividades.innerHTML = '';
@@ -267,6 +280,7 @@ function conectar() {
     const mensagem = JSON.parse(evento.data);
 
     if (mensagem.tipo === 'snapshot') renderizarSnapshot(mensagem.dados);
+    else if (mensagem.tipo === 'stats' && mensagem.plataforma === 'discord') atualizarDiscordIndicador(mensagem.dados);
     else if (mensagem.tipo === 'stats') atualizarCard(mensagem.plataforma, mensagem.dados);
     else if (mensagem.tipo === 'atividade') prependAtividade(mensagem.item);
     else if (mensagem.tipo === 'chat') adicionarChat(mensagem.item);

@@ -56,7 +56,7 @@ body {
 
 .card-plataforma {
   flex: 1;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border-left: 3px solid var(--linha);
 }
 
@@ -66,9 +66,39 @@ body {
 .card-plataforma header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 5px;
+  margin-bottom: 2px;
 }
+
+/* --- Indicador de mute do Discord (antes do card da Kick) --- */
+
+.indicador-discord {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-right: 1px solid var(--border);
+}
+
+.indicador-discord .bolinha {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--texto-fraco);
+  flex-shrink: 0;
+}
+
+.indicador-discord .rotulo {
+  font-size: 0.8rem;
+  color: var(--texto-fraco);
+  white-space: nowrap;
+}
+
+.indicador-discord[data-mutado="true"] .bolinha { background: var(--vermelho); }
+.indicador-discord[data-mutado="true"] .rotulo { color: var(--texto); }
+.indicador-discord[data-mutado="false"] .bolinha { background: var(--verde); }
+.indicador-discord[data-mutado="false"] .rotulo { color: var(--texto); }
 
 .card-plataforma h2 {
   margin: 0;
@@ -117,19 +147,19 @@ body {
 .card-plataforma dl {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 4px;
+  gap: 2px;
   margin: 0;
 }
 
 .card-plataforma dt {
-  font-size: 0.65rem;
+  font-size: 0.6rem;
   color: var(--texto-fraco);
   text-transform: uppercase;
 }
 
 .card-plataforma dd {
   margin: 0;
-  font-size: 1.15rem;
+  font-size: 1rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }

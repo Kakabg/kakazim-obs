@@ -8,7 +8,7 @@ import threading
 import time
 import uuid
 
-from . import config, store
+from . import config, discord_status, store
 from .automations.cs2_scene_switcher import MonitorCs2SceneSwitcher
 from .kick import stats as kick_stats
 from .kick.relay_client import ClienteRelayKick
@@ -25,6 +25,7 @@ INTERVALO_TOTAIS_S = 60
 INTERVALO_ANUNCIOS_S = 20
 INTERVALO_FALHA_MINIMO_S = 45
 INTERVALO_PODA_CHAT_S = 60 * 60
+INTERVALO_DISCORD_S = 10
 
 # Intervalo entre mensagens quando mais de um anúncio (bônus + conquista, ou
 # várias conquistas de uma vez) precisa ser mandado em sequência - evita
@@ -42,6 +43,10 @@ _lock = threading.RLock()
 _estado = {
     "twitch": {"aoVivo": False, "viewers": 0, "seguidores": None, "inscritos": None},
     "kick": {"aoVivo": False, "viewers": 0, "seguidores": None, "inscritos": None},
+    # mutado: None = desconhecido (ainda sem resposta do kakazim-bot, ou o
+    # Caíque nunca entrou numa call desde que o bot ligou) - ver
+    # discord_status.py. Indicador ainda não validado numa live de verdade.
+    "discord": {"mutado": None},
     "atividades": [],
     "chat": [],
     # Pre-semeado com os dois nomes conhecidos hoje - cs2-scene-switcher já
@@ -442,8 +447,17 @@ def _podar_chat():
             _estado["chat"] = store.listar_chat_recentes(TAMANHO_SNAPSHOT_HISTORICO)
 
 
+def _atualizar_status_discord():
+    resultado = discord_status.buscar_status_mute()
+    if resultado is not None:
+        _atualizar_stats("discord", {"mutado": resultado.get("mutado")})
+
+
 def _iniciar_manutencao():
     _iniciar_loop_periodico(_podar_chat, INTERVALO_PODA_CHAT_S, "poda-chat")
+    # Independente de Kick/Twitch estarem configurados - o indicador de mute
+    # só depende do kakazim-bot (Discord), roda sempre.
+    _iniciar_loop_periodico(_atualizar_status_discord, INTERVALO_DISCORD_S, "discord-mute")
 
 
 # --- helper de polling periodico ---
