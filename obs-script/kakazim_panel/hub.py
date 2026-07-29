@@ -194,7 +194,9 @@ def _tratar_evento_twitch(tipo, evento):
                 "cor": evento.get("color") or None,
             }
         )
-        _responder_comando_chat_twitch(evento.get("chatter_user_id"), mensagem)
+        _responder_comando_chat_twitch(
+            evento.get("chatter_user_id"), evento.get("chatter_user_name"), mensagem, evento.get("badges")
+        )
 
         # !sorteio funciona pra QUALQUER UM, incluindo o streamer (precisa
         # conseguir testar/participar) - por isso fica fora do "if not
@@ -260,14 +262,25 @@ def _eh_conta_do_proprio_canal(chatter_user_id):
         return False
 
 
-def _responder_comando_chat_twitch(chatter_user_id, mensagem):
+def _eh_mod_ou_broadcaster_twitch(badges):
+    """"Admin" (tier de permissão dos comandos de chat) = moderador ou o
+    próprio streamer - badges vem direto do evento EventSub
+    channel.chat.message (lista de {set_id, id, info})."""
+    if not isinstance(badges, list):
+        return False
+    return any(badge.get("set_id") in ("moderator", "broadcaster") for badge in badges)
+
+
+def _responder_comando_chat_twitch(chatter_user_id, chatter_user_name, mensagem, badges):
     """Comando de resposta automática (aba admin "kakazim.bot" do
     Kakaverso). Não responde mensagem do próprio kakazimbot - evita loop
     (comparando com a conta bot autorizada via /twitch/login?role=bot)."""
     if _eh_mensagem_do_bot(chatter_user_id):
         return
 
-    resposta = twitch_comandos_chat.buscar_resposta_comando(mensagem)
+    resposta = twitch_comandos_chat.executar_comando(
+        mensagem, chatter_user_id, chatter_user_name, _eh_mod_ou_broadcaster_twitch(badges)
+    )
     if not resposta:
         return
 
