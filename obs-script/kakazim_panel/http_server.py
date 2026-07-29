@@ -78,6 +78,8 @@ class Handler(BaseHTTPRequestHandler):
 
         if caminho in ARQUIVOS_ESTATICOS:
             self._servir_estatico(ARQUIVOS_ESTATICOS[caminho])
+        elif caminho.startswith("/vendor/"):
+            self._servir_estatico(caminho.lstrip("/"))
         elif caminho == "/events":
             self._servir_sse()
         elif caminho == "/api/state":
@@ -128,7 +130,12 @@ class Handler(BaseHTTPRequestHandler):
     # --- rotas ---
 
     def _servir_estatico(self, nome_arquivo):
-        caminho = _public_dir() / nome_arquivo
+        base = _public_dir().resolve()
+        caminho = (base / nome_arquivo).resolve()
+        if base not in caminho.parents and caminho != base:
+            self._responder_404()
+            return
+
         try:
             conteudo = caminho.read_bytes()
         except OSError:
