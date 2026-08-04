@@ -23,19 +23,63 @@ body {
 
 .painel {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* --largura-chat (percentual) é ajustada ao vivo pelo drag da divisória
+     (ver configurarDivisoriaResizavel em app.js) - 1fr do lado direito
+     absorve o resto. Coluna do meio é só a faixa fina da própria
+     divisória. */
+  grid-template-columns: var(--largura-chat, 50%) 10px 1fr;
   grid-template-rows: auto 1fr auto;
   /* Chat na esquerda (mais alto - ocupa as 2 linhas de baixo somadas) e
      Atividade recente + Automações empilhados na direita, uma embaixo da
-     outra. */
+     outra - a divisória fica entre as duas, também esticada nas 2 linhas. */
   grid-template-areas:
-    "stats stats"
-    "chat feed"
-    "chat automacoes";
+    "stats stats stats"
+    "chat divisoria feed"
+    "chat divisoria automacoes";
   gap: 12px;
   padding: 12px;
   height: 100vh;
   width: 100vw;
+}
+
+/* --- Divisória redimensionável (Chat ↔ Atividade recente) --- */
+/* Só a faixa central é o alvo de arrasto (10px) - a "pegada" visual real é
+   maior por causa do ::after com largura fixa e sem afetar o layout (position:
+   absolute), pra não exigir mira cirúrgica pra pegar a divisória. */
+
+.divisoria-resizavel {
+  grid-area: divisoria;
+  position: relative;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.divisoria-resizavel::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: var(--border);
+  transition: background-color 0.15s ease;
+}
+
+.divisoria-resizavel:hover::after,
+.divisoria-resizavel:focus-visible::after,
+.painel[data-arrastando="true"] .divisoria-resizavel::after {
+  background: var(--texto-fraco);
+}
+
+.divisoria-resizavel:focus-visible {
+  outline: none;
+}
+
+/* Evita selecionar texto do Chat/Atividade sem querer enquanto arrasta. */
+.painel[data-arrastando="true"] {
+  user-select: none;
 }
 
 /* --- Stats --- */
@@ -184,6 +228,10 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Rede de segurança pro arrasto da divisória (ver configurarDivisoriaResizavel
+     em app.js, que já limita o drag pra nunca pedir menos que isso) - garante
+     que nenhum lado sume mesmo num cenário fora do previsto pelo JS. */
+  min-width: 240px;
 }
 
 .coluna--feed { grid-area: feed; }
@@ -355,6 +403,32 @@ a.item-usuario:hover {
   font-size: 0.75rem;
   white-space: nowrap;
   flex-shrink: 0;
+}
+
+/* Ícone de repetir (Atividade recente) - discreto por padrão, só destaca no
+   hover/foco pra não competir visualmente com o resto da linha. */
+.botao-repetir {
+  flex-shrink: 0;
+  margin-left: 6px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--texto-fraco);
+  font-size: 0.8rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.55;
+  transition: opacity 0.15s ease;
+}
+
+.botao-repetir:hover,
+.botao-repetir:focus-visible {
+  opacity: 1;
+}
+
+.botao-repetir:disabled {
+  cursor: default;
+  opacity: 0.85;
 }
 
 .badge-bot {

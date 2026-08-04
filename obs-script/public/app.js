@@ -103,6 +103,57 @@ function atualizarDiscordIndicador(dados) {
   indicador.querySelector('.rotulo').textContent = mutado === true ? 'Mutado' : mutado === false ? 'Ativo' : 'Discord';
 }
 
+// Ícone de "repetir/reexibir" por item (qualquer um da lista, não só o mais
+// recente) - manda o próprio item (tipo/plataforma/usuario/detalhe) pro
+// backend local, que repassa pro kakazim-bot mostrar o alerta de novo na
+// AlertBox da StreamElements (ver kakazim_panel/streamelements.py e
+// server.js: /api/streamelements/repetir-evento). Generaliza o botão
+// "Repetir Alerta LivePix" do Stream Deck (que só repete o ÚLTIMO alerta da
+// LivePix, sem escolha de qual) pra qualquer evento desta lista.
+function botaoRepetirAtividade(item) {
+  const botao = document.createElement('button');
+  botao.type = 'button';
+  botao.className = 'botao-repetir';
+  botao.title = 'Repetir o alerta desse evento';
+  botao.setAttribute('aria-label', 'Repetir o alerta desse evento');
+  botao.textContent = '🔁';
+
+  botao.addEventListener('click', async () => {
+    if (botao.disabled) return;
+    botao.disabled = true;
+
+    try {
+      const resposta = await fetch('/api/atividades/repetir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: item.tipo,
+          plataforma: item.plataforma,
+          usuario: item.usuario,
+          detalhe: item.detalhe,
+        }),
+      });
+      const corpo = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(corpo.erro || `Falha ao repetir (HTTP ${resposta.status})`);
+
+      botao.textContent = '✅';
+      botao.title = 'Alerta repetido!';
+    } catch (erro) {
+      console.error('Falha ao repetir alerta:', erro);
+      botao.textContent = '⚠️';
+      botao.title = erro.message || String(erro);
+    } finally {
+      setTimeout(() => {
+        botao.textContent = '🔁';
+        botao.title = 'Repetir o alerta desse evento';
+        botao.disabled = false;
+      }, 2500);
+    }
+  });
+
+  return botao;
+}
+
 function criarItemAtividade(item) {
   const li = document.createElement('li');
   li.dataset.timestamp = String(item.timestamp);
@@ -118,6 +169,8 @@ function criarItemAtividade(item) {
   tempo.className = 'item-tempo';
   tempo.textContent = formatarTempoRelativo(item.timestamp);
   li.appendChild(tempo);
+
+  li.appendChild(botaoRepetirAtividade(item));
 
   return li;
 }
@@ -343,7 +396,85 @@ function configurarEnvioChat() {
   });
 }
 
+// Divisória arrastável entre Chat e Atividade recente - a proporção muda ao
+// vivo via --largura-chat (percentual, ver .painel em style.css), então um
+// painel cresce EXATAMENTE na proporção que o outro encolhe (mesma faixa de
+// espaço total, só a fronteira entre os dois se move). LARGURA_MINIMA_PX
+// garante que nenhum lado consiga sumir - o clamp usa o percentual
+// equivalente a esse mínimo em pixels na largura atual do painel, então
+// continua correto mesmo se a janela/Browser Source for redimensionada
+// depois. Persistido em localStorage pra sobreviver a um reload/restart do
+// OBS.
+function configurarDivisoriaResizavel() {
+  const painel = document.querySelector('.painel');
+  const divisoria = document.getElementById('divisoria-chat-feed');
+  if (!painel || !divisoria) return;
+
+  const CHAVE_LARGURA = 'kakazim-painel-largura-chat-pct';
+  const LARGURA_MINIMA_PX = 240;
+  const LARGURA_PADRAO_PCT = 50;
+
+  function aplicarLarguraPct(pct) {
+    painel.style.setProperty('--largura-chat', `${pct}%`);
+  }
+
+  function larguraMinimaPct(larguraPainelPx) {
+    // Mínimo dos dois lados (a coluna direita também não pode sumir) -
+    // 10px a mais de folga pela própria divisória entre as colunas.
+    return ((LARGURA_MINIMA_PX + 10) / larguraPainelPx) * 100;
+  }
+
+  const larguraSalva = Number(localStorage.getItem(CHAVE_LARGURA));
+  aplicarLarguraPct(Number.isFinite(larguraSalva) && larguraSalva > 0 ? larguraSalva : LARGURA_PADRAO_PCT);
+
+  let larguraAtualPct = Number.isFinite(larguraSalva) && larguraSalva > 0 ? larguraSalva : LARGURA_PADRAO_PCT;
+
+  function moverPara(clientX) {
+    const retangulo = painel.getBoundingClientRect();
+    const minimo = larguraMinimaPct(retangulo.width);
+    let pct = ((clientX - retangulo.left) / retangulo.width) * 100;
+    pct = Math.min(100 - minimo, Math.max(minimo, pct));
+    larguraAtualPct = pct;
+    aplicarLarguraPct(pct);
+  }
+
+  divisoria.addEventListener('pointerdown', (evento) => {
+    divisoria.setPointerCapture(evento.pointerId);
+    painel.dataset.arrastando = 'true';
+    evento.preventDefault();
+  });
+
+  divisoria.addEventListener('pointermove', (evento) => {
+    if (painel.dataset.arrastando !== 'true') return;
+    moverPara(evento.clientX);
+  });
+
+  function soltar(evento) {
+    if (painel.dataset.arrastando !== 'true') return;
+    painel.dataset.arrastando = 'false';
+    divisoria.releasePointerCapture(evento.pointerId);
+    localStorage.setItem(CHAVE_LARGURA, String(larguraAtualPct));
+  }
+
+  divisoria.addEventListener('pointerup', soltar);
+  divisoria.addEventListener('pointercancel', soltar);
+
+  // Teclado (acessibilidade) - seta esquerda/direita move em passos de 2%,
+  // já respeitando o mesmo mínimo do drag.
+  divisoria.addEventListener('keydown', (evento) => {
+    if (evento.key !== 'ArrowLeft' && evento.key !== 'ArrowRight') return;
+    evento.preventDefault();
+    const retangulo = painel.getBoundingClientRect();
+    const minimo = larguraMinimaPct(retangulo.width);
+    const passo = evento.key === 'ArrowLeft' ? -2 : 2;
+    larguraAtualPct = Math.min(100 - minimo, Math.max(minimo, larguraAtualPct + passo));
+    aplicarLarguraPct(larguraAtualPct);
+    localStorage.setItem(CHAVE_LARGURA, String(larguraAtualPct));
+  });
+}
+
 document.getElementById('lista-atividades').addEventListener('scroll', aoRolarListaAtividades);
 setInterval(atualizarTemposRelativos, INTERVALO_ATUALIZACAO_TEMPO_MS);
 configurarEnvioChat();
+configurarDivisoriaResizavel();
 conectar();

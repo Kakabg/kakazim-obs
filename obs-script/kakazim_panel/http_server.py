@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import config, hub, store
+from . import config, hub, store, streamelements
 from .kick import chat as kick_chat
 from .kick import oauth_pessoal as kick_oauth_pessoal
 from .twitch import chat_pessoal as twitch_chat_pessoal
@@ -121,6 +121,8 @@ class Handler(BaseHTTPRequestHandler):
             self._enviar_mensagem_chat()
         elif caminho == "/api/kick/chat-pessoal/token":
             self._receber_token_kick_pessoal()
+        elif caminho == "/api/atividades/repetir":
+            self._repetir_atividade()
         elif correspondencia_automacao:
             self._reportar_status_automacao(correspondencia_automacao.group(1))
         else:
@@ -336,6 +338,38 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as erro:
             nome_plataforma = "Twitch" if plataforma == "twitch" else "Kick"
             self._responder_json({"erro": f"Falha ao enviar mensagem no chat da {nome_plataforma}: {erro}"}, status=502)
+            return
+
+        self._responder_json({"ok": True})
+
+    # Ícone "repetir" em cada item da Atividade recente (ver public/app.js) -
+    # repassa o próprio item pro kakazim-bot repetir o alerta na StreamElements
+    # (ver kakazim_panel/streamelements.py). O item chega pronto no corpo (o
+    # frontend já tem tipo/plataforma/usuario/detalhe renderizados, sem
+    # precisar de um lookup por id aqui) - funciona pra QUALQUER item da
+    # lista, não só o mais recente.
+    def _repetir_atividade(self):
+        tamanho = int(self.headers.get("Content-Length", 0) or 0)
+        bruto = self.rfile.read(tamanho) if tamanho else b""
+
+        try:
+            corpo = json.loads(bruto or b"{}")
+            item = {
+                "tipo": corpo.get("tipo"),
+                "plataforma": corpo.get("plataforma"),
+                "usuario": corpo.get("usuario"),
+                "detalhe": corpo.get("detalhe"),
+            }
+            if not item["tipo"] or not item["plataforma"]:
+                raise ValueError("tipo/plataforma ausentes")
+        except (TypeError, ValueError, json.JSONDecodeError):
+            self._responder_json({"erro": 'Envie { "tipo", "plataforma", "usuario", "detalhe" }.'}, status=400)
+            return
+
+        try:
+            streamelements.repetir_evento(item)
+        except RuntimeError as erro:
+            self._responder_json({"erro": str(erro)}, status=502)
             return
 
         self._responder_json({"ok": True})
