@@ -36,16 +36,20 @@ body {
     "stats stats stats"
     "chat divisoria feed"
     "chat divisoria automacoes";
-  gap: 12px;
+  row-gap: 12px;
+  /* 60% do gap original (12px) só entre as colunas (chat|divisória|feed) -
+     row-gap continua 12px (não mexe no espaçamento vertical pras
+     Automações/Stats, só pedido pro espaço em volta da divisória). */
+  column-gap: 7.2px;
   padding: 12px;
   height: 100vh;
   width: 100vw;
 }
 
 /* --- Divisória redimensionável (Chat ↔ Atividade recente) --- */
-/* Só a faixa central é o alvo de arrasto (10px) - a "pegada" visual real é
-   maior por causa do ::after com largura fixa e sem afetar o layout (position:
-   absolute), pra não exigir mira cirúrgica pra pegar a divisória. */
+/* Só a faixa central é o alvo de arrasto (10px, mantida cheia de propósito)
+   - a "pegada" clicável/arrastável continua bem maior que a linha visual
+   fina do ::after, pra não exigir mira cirúrgica pra pegar a divisória. */
 
 .divisoria-resizavel {
   grid-area: divisoria;
@@ -60,7 +64,8 @@ body {
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 3px;
+  /* 60% do 3px original */
+  width: 1.8px;
   transform: translateX(-50%);
   border-radius: 2px;
   background: var(--border);
