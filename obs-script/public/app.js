@@ -6,6 +6,49 @@ function formatarNumero(valor) {
   return valor == null ? '—' : Number(valor).toLocaleString('pt-BR');
 }
 
+// Emotes da Kick chegam embutidos no texto da mensagem, no formato bruto
+// "[emote:ID:Nome]" (a Kick não manda imagem nenhuma, só isso) - CDN pública
+// deles pra buscar a imagem pelo ID: https://files.kick.com/emotes/{id}/
+// fullsize (confirmado batendo o ID de um emote real visto ao vivo no chat).
+const REGEX_EMOTE_KICK = /\[emote:(\d+):([^\]]*)\]/g;
+
+function urlEmoteKick(id) {
+  return `https://files.kick.com/emotes/${id}/fullsize`;
+}
+
+/**
+ * Preenche `elemento` com o texto da mensagem, trocando cada
+ * "[emote:ID:Nome]" por um <img> - resto do texto vira nó de texto normal
+ * ao redor. Via createTextNode/createElement (não innerHTML) de propósito:
+ * o texto vem de mensagem de chat de terceiros, não pode virar HTML.
+ */
+function preencherMensagemComEmotes(elemento, texto) {
+  const valor = texto || '';
+  let ultimoIndice = 0;
+
+  for (const match of valor.matchAll(REGEX_EMOTE_KICK)) {
+    const [completo, id, nome] = match;
+    const indice = match.index ?? 0;
+
+    if (indice > ultimoIndice) {
+      elemento.appendChild(document.createTextNode(valor.slice(ultimoIndice, indice)));
+    }
+
+    const img = document.createElement('img');
+    img.src = urlEmoteKick(id);
+    img.alt = nome || `emote ${id}`;
+    if (nome) img.title = nome;
+    img.className = 'emote-kick';
+    elemento.appendChild(img);
+
+    ultimoIndice = indice + completo.length;
+  }
+
+  if (ultimoIndice < valor.length) {
+    elemento.appendChild(document.createTextNode(valor.slice(ultimoIndice)));
+  }
+}
+
 function formatarTempoRelativo(timestampMs) {
   const diffMin = Math.floor((Date.now() - timestampMs) / 60000);
   if (diffMin < 1) return 'agora';
@@ -257,7 +300,7 @@ function adicionarChat(item, { autoScroll = true } = {}) {
   }
 
   const mensagem = document.createElement('span');
-  mensagem.textContent = item.mensagem || '';
+  preencherMensagemComEmotes(mensagem, item.mensagem);
   li.appendChild(mensagem);
 
   lista.appendChild(li);

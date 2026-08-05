@@ -454,6 +454,16 @@ a.item-usuario:hover {
   padding: 8px 2px;
 }
 
+/* Emote da Kick (ver preencherMensagemComEmotes em app.js) - altura em em
+   pra acompanhar o tamanho da fonte da mensagem, largura livre (emotes não
+   são todos quadrados). */
+.emote-kick {
+  height: 1.3em;
+  width: auto;
+  vertical-align: middle;
+  margin: 0 2px;
+}
+
 /* --- Automações --- */
 
 .automacoes {
