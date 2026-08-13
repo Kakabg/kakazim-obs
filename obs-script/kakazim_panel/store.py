@@ -278,11 +278,20 @@ def _obter_conexao():
             usuario TEXT,
             mensagem TEXT,
             cor TEXT,
-            origem TEXT
+            origem TEXT,
+            sub INTEGER NOT NULL DEFAULT 0
         )
         """
     )
     conexao.execute("CREATE INDEX IF NOT EXISTS idx_chat_timestamp ON chat (timestamp)")
+    # Banco de uma execucao anterior (antes de "sub" existir) nao ganha a
+    # coluna nova so com o CREATE TABLE IF NOT EXISTS acima - SQLite nao tem
+    # "ADD COLUMN IF NOT EXISTS" portavel entre versoes, entao tenta e ignora
+    # o erro de coluna duplicada (banco ja migrado).
+    try:
+        conexao.execute("ALTER TABLE chat ADD COLUMN sub INTEGER NOT NULL DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
     conexao.commit()
 
     _migrar_historico_legado(conexao)
@@ -329,8 +338,8 @@ def _inserir_atividade(conexao, item):
 def _inserir_chat(conexao, item):
     conexao.execute(
         """
-        INSERT OR REPLACE INTO chat (id, timestamp, plataforma, usuario, mensagem, cor, origem)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT OR REPLACE INTO chat (id, timestamp, plataforma, usuario, mensagem, cor, origem, sub)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         """,
         (
             item["id"],
@@ -340,6 +349,7 @@ def _inserir_chat(conexao, item):
             item.get("mensagem"),
             item.get("cor"),
             item.get("origem"),
+            1 if item.get("sub") else 0,
         ),
     )
 
@@ -364,6 +374,7 @@ def _linha_para_chat(linha):
         "mensagem": linha["mensagem"],
         "cor": linha["cor"],
         "origem": linha["origem"],
+        "sub": bool(linha["sub"]),
     }
 
 

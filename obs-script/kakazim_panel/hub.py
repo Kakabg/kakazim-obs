@@ -188,16 +188,19 @@ def _tratar_evento_twitch(tipo, evento):
 
     if tipo == "channel.chat.message":
         mensagem = (evento.get("message") or {}).get("text", "")
+        badges = evento.get("badges")
+        eh_sub = _eh_sub_twitch(badges)
         _registrar_chat(
             {
                 "plataforma": "twitch",
                 "usuario": evento.get("chatter_user_name"),
                 "mensagem": mensagem,
                 "cor": evento.get("color") or None,
+                "sub": eh_sub,
             }
         )
         _responder_comando_chat_twitch(
-            evento.get("chatter_user_id"), evento.get("chatter_user_name"), mensagem, evento.get("badges")
+            evento.get("chatter_user_id"), evento.get("chatter_user_name"), mensagem, badges
         )
 
         # !sorteio funciona pra QUALQUER UM, incluindo o streamer (precisa
@@ -225,6 +228,7 @@ def _tratar_evento_twitch(tipo, evento):
                 evento.get("chatter_user_name"),
                 mensagem=mensagem,
                 cor=evento.get("color"),
+                sub=eh_sub,
             )
             # Lista, não texto único - bônus de boas-vindas e conquista(s)
             # podem vir juntos na mesma mensagem (ver kakazim-bot: banco/
@@ -262,6 +266,17 @@ def _eh_conta_do_proprio_canal(chatter_user_id):
         return str(chatter_user_id) == str(twitch_helix.broadcaster_user_id())
     except RuntimeError:
         return False
+
+
+def _eh_sub_twitch(badges):
+    """Ícone da plataforma vira prata no chat (Painel Live e Início do
+    Kakaverso, que compartilham essa mesma informação - ver
+    twitch_contagem_mensagens.registrar_mensagem_chat) quando quem mandou é
+    assinante do canal - "founder" conta junto (assinante antigo com badge
+    diferente, mas ainda assinante)."""
+    if not isinstance(badges, list):
+        return False
+    return any(badge.get("set_id") in ("subscriber", "founder") for badge in badges)
 
 
 def _eh_mod_ou_broadcaster_twitch(badges):
@@ -353,6 +368,7 @@ def _tratar_evento_kick(tipo, payload):
     if tipo == "chat.message.sent":
         sender = payload.get("sender") or {}
         identidade = sender.get("identity") or {}
+        badges = identidade.get("badges")
         _registrar_chat(
             {
                 "plataforma": "kick",
@@ -364,6 +380,10 @@ def _tratar_evento_kick(tipo, payload):
                 # dispara chat.message.sent pra mensagens do próprio app/bot) -
                 # ausente/None pra mensagem real de espectador.
                 "origem": identidade.get("origem"),
+                # Ícone da plataforma vira prata (ver style.css) quando quem
+                # mandou é assinante - mesmo formato de badge usado em
+                # ehModOuBroadcasterKick (kakazim-bot: server.js).
+                "sub": isinstance(badges, list) and any(b.get("type") == "subscriber" for b in badges),
             }
         )
 

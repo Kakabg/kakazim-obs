@@ -9,6 +9,10 @@
   --streamelements: #2dd4bf;
   --vermelho: #ff4757;
   --verde: #2ecc71;
+  /* Ícone da plataforma no chat vira essa cor quando quem mandou é
+     assinante (ver .icone-plataforma-mini.sub abaixo) - prata neutro,
+     legível nos dois temas de fundo escuro (--bg e --card-bg). */
+  --sub-prata: #c7c9d1;
   font-size: 15px;
 }
 
@@ -386,6 +390,13 @@ body {
   mask-image: url('vendor/tabler-icons/brand-twitch.svg');
 }
 .icone-plataforma-mini.streamelements { background: var(--streamelements); color: #fff; }
+
+/* Assinante do canal - mesmo ícone (mask-image), só troca a cor da marca
+   pela prata (ver iconeMini em app.js). Depois das regras .kick/.twitch de
+   propósito, pra --icone-cor ganhar delas quando as duas classes coexistem. */
+.icone-plataforma-mini.sub {
+  --icone-cor: var(--sub-prata);
+}
 
 .item-usuario { font-weight: 600; }
 

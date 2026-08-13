@@ -67,9 +67,9 @@ function formatarTempoRelativo(timestampMs) {
 // style.css) - sem letra. StreamElements continua no monograma de letra.
 const LETRA_POR_PLATAFORMA = { streamelements: '$' };
 
-function iconeMini(plataforma) {
+function iconeMini(plataforma, { sub = false } = {}) {
   const span = document.createElement('span');
-  span.className = `icone-plataforma-mini ${plataforma}`;
+  span.className = `icone-plataforma-mini ${plataforma}${sub ? ' sub' : ''}`;
   span.setAttribute('aria-hidden', 'true');
   const letra = LETRA_POR_PLATAFORMA[plataforma];
   if (letra) span.textContent = letra;
@@ -283,7 +283,7 @@ function adicionarChat(item, { autoScroll = true } = {}) {
   lista.querySelector('.item-vazio')?.remove();
 
   const li = document.createElement('li');
-  li.appendChild(iconeMini(item.plataforma));
+  li.appendChild(iconeMini(item.plataforma, { sub: Boolean(item.sub) }));
 
   const usuario = criarNomeUsuario(item);
   if (item.cor) usuario.style.color = item.cor;

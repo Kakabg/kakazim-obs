@@ -15,7 +15,7 @@ from .. import config
 from ..http_util import ErroHttp, montar_url, requisitar
 
 
-def registrar_mensagem_chat(twitch_user_id, twitch_username, mensagem=None, cor=None):
+def registrar_mensagem_chat(twitch_user_id, twitch_username, mensagem=None, cor=None, sub=False):
     """Falha aqui não deve derrubar o processamento normal do chat (comando
     automático etc.) - só significa que essa mensagem não contou pra quest
     dessa vez (silencioso de propósito, mesmo padrão de comandos_chat.py).
@@ -27,7 +27,9 @@ def registrar_mensagem_chat(twitch_user_id, twitch_username, mensagem=None, cor=
 
     mensagem/cor são opcionais e servem só pra alimentar o buffer de chat do
     Kakaverso (kakazim-bot: chat/buffer.js) - sem eles o kakazim-bot ainda
-    incrementa a contagem normalmente, só não aparece no chat do painel."""
+    incrementa a contagem normalmente, só não aparece no chat do painel.
+    sub (ver hub.py:_eh_sub_twitch) deixa o ícone da plataforma prata nos
+    dois chats (Painel Live e Início) que leem esse buffer."""
     if not twitch_user_id:
         return None
 
@@ -40,6 +42,8 @@ def registrar_mensagem_chat(twitch_user_id, twitch_username, mensagem=None, cor=
         dados["message"] = mensagem
     if cor:
         dados["color"] = cor
+    if sub:
+        dados["sub"] = True
 
     try:
         return requisitar(url, method="POST", dados_json=dados)
