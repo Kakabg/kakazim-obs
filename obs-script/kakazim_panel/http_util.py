@@ -8,6 +8,18 @@ import urllib.request
 
 TIMEOUT_PADRAO = 10
 
+# Sem isso, o urllib manda "User-Agent: Python-urllib/3.x" por padrao - a
+# Cloudflare da Kick bloqueia isso na hora (403, codigo 1010 - "detectado
+# como bot"), inclusive em endpoint oficial autenticado com Bearer token (foi
+# a causa do botao "Enviar Mensagem" do dock "Painel Live" nunca funcionar -
+# esse painel roda local, direto no urllib, sem passar pelo Kakaverso/
+# kakazim-bot, que ja tinham esse mesmo ajuste). setdefault() abaixo aplica
+# pra toda chamada deste helper (Kick, Twitch, Discord, StreamElements) sem
+# sobrescrever um User-Agent explicito que algum chamador já tenha passado.
+USER_AGENT_PADRAO = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
 
 class ErroHttp(Exception):
     def __init__(self, status, corpo):
@@ -20,6 +32,7 @@ def requisitar(url, method="GET", headers=None, dados_form=None, dados_json=None
     """Faz uma requisicao HTTP e devolve o corpo decodificado como JSON (ou
     None se a resposta vier vazia). Lanca ErroHttp em respostas 4xx/5xx."""
     headers = dict(headers or {})
+    headers.setdefault("User-Agent", USER_AGENT_PADRAO)
     corpo = None
 
     if dados_form is not None:
