@@ -123,6 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             self._receber_token_kick_pessoal()
         elif caminho == "/api/atividades/repetir":
             self._repetir_atividade()
+        elif caminho == "/api/atividades/repetir-ultimo-sub-follow":
+            self._repetir_ultimo_sub_follow()
         elif correspondencia_automacao:
             self._reportar_status_automacao(correspondencia_automacao.group(1))
         else:
@@ -373,6 +375,32 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         self._responder_json({"ok": True})
+
+    # Botão físico "Repetir último alerta" do Stream Deck (kakazim-live) -
+    # sem corpo esperado, sem segredo (só o próprio painel/Stream Deck rodando
+    # na mesma máquina fala com esta porta). Diferente de _repetir_atividade
+    # acima (que exige o item pronto no corpo, usado pelo clique manual num
+    # item específico da lista no frontend), este escolhe sozinho o item -
+    # o sub/follow/renovação mais recente de QUALQUER plataforma (ver
+    # store.buscar_ultimo_sub_follow), porque esta tabela já recebe Kick
+    # (relay do kakazim-bot) e Twitch (EventSub direto) normalizados com os
+    # mesmos valores de tipo. Sem equivalente cross-plataforma antes: o botão
+    # só considerava o outbox Kick-only do kakazim-bot (ver server.js: POST
+    # /api/streamelements/repetir-ultimo-sub-follow, que continua existindo
+    # do jeito que está pra quem usa chave pessoal de relay sem este painel).
+    def _repetir_ultimo_sub_follow(self):
+        item = store.buscar_ultimo_sub_follow()
+        if not item:
+            self._responder_json({"erro": "Nenhum sub/follow registrado ainda nesta sessão do painel."}, status=404)
+            return
+
+        try:
+            streamelements.repetir_evento(item)
+        except RuntimeError as erro:
+            self._responder_json({"erro": str(erro)}, status=502)
+            return
+
+        self._responder_json({"ok": True, "item": item})
 
     def _enviar_mensagem_twitch(self):
         tamanho = int(self.headers.get("Content-Length", 0) or 0)

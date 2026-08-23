@@ -403,6 +403,21 @@ def listar_atividades_recentes(limite=50):
     return [_linha_para_atividade(linha) for linha in reversed(linhas)]
 
 
+def buscar_ultimo_sub_follow():
+    """Item mais recente de sub/follow/renovação de QUALQUER plataforma
+    (Kick e Twitch usam os mesmos valores de `tipo` - "seguidor"/"inscricao",
+    ver hub.py:_tratar_evento_kick/_tratar_evento_twitch) - usado pelo botão
+    "Repetir último alerta" do Stream Deck (ver http_server.py:
+    POST /api/atividades/repetir-ultimo-sub-follow). None se não houver
+    nenhum registrado ainda."""
+    with _lock:
+        conexao = _obter_conexao()
+        linha = conexao.execute(
+            "SELECT * FROM atividades WHERE tipo IN ('seguidor', 'inscricao') ORDER BY timestamp DESC LIMIT 1"
+        ).fetchone()
+    return _linha_para_atividade(linha) if linha else None
+
+
 def listar_atividades_pagina(antes_de=None, limite=50):
     """Pagina de itens mais antigos que `antes_de` (timestamp em ms), em
     ordem decrescente - usado pelo "carregar mais" no scroll do feed."""
