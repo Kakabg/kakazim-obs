@@ -9,6 +9,7 @@
   --streamelements: #2dd4bf;
   --vermelho: #ff4757;
   --verde: #2ecc71;
+  --amarelo: #f5b70a;
   /* Ícone da plataforma no chat vira essa cor quando quem mandou é
      assinante (ver .icone-plataforma-mini.sub abaixo) - prata neutro,
      legível nos dois temas de fundo escuro (--bg e --card-bg). */
@@ -152,6 +153,32 @@ body {
 .indicador-discord[data-mutado="true"] .rotulo { color: var(--texto); }
 .indicador-discord[data-mutado="false"] .bolinha { background: var(--verde); }
 .indicador-discord[data-mutado="false"] .rotulo { color: var(--texto); }
+
+/* --- Indicador de sincronização por plataforma (no header de cada card) --- */
+
+.sync-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.62rem;
+  color: var(--texto-fraco);
+  white-space: nowrap;
+}
+
+.sync-status .sync-bolinha {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--texto-fraco);
+  flex-shrink: 0;
+}
+
+.sync-status[data-estado="verde"] .sync-bolinha { background: var(--verde); }
+.sync-status[data-estado="amarelo"] .sync-bolinha { background: var(--amarelo); }
+.sync-status[data-estado="vermelho"] .sync-bolinha { background: var(--vermelho); }
+/* "amarelo"/"vermelho" também puxam o texto pra cor, pra chamar atenção. */
+.sync-status[data-estado="amarelo"] .sync-texto { color: var(--amarelo); }
+.sync-status[data-estado="vermelho"] .sync-texto { color: var(--vermelho); }
 
 .card-plataforma h2 {
   margin: 0;

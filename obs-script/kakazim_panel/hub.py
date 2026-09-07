@@ -41,8 +41,14 @@ TAMANHO_SNAPSHOT_HISTORICO = 50
 _lock = threading.RLock()
 
 _estado = {
-    "twitch": {"aoVivo": False, "viewers": 0, "seguidores": None, "inscritos": None},
-    "kick": {"aoVivo": False, "viewers": 0, "seguidores": None, "inscritos": None},
+    # atualizadoEm: epoch ms do ultimo update BEM-SUCEDIDO de stats dessa
+    # plataforma (poll de viewers/totais OU evento de follow/sub, ver
+    # _atualizar_stats). None = ainda nao atualizou desde o boot. O frontend
+    # usa isso pro indicador de sincronizacao (bolinha verde/amarela/
+    # vermelha + "atualizado ha Xs") - se o loop de polling comeca a falhar,
+    # _atualizar_stats para de ser chamado e o carimbo envelhece.
+    "twitch": {"aoVivo": False, "viewers": 0, "seguidores": None, "inscritos": None, "atualizadoEm": None},
+    "kick": {"aoVivo": False, "viewers": 0, "seguidores": None, "inscritos": None, "atualizadoEm": None},
     # mutado: None = desconhecido (ainda sem resposta do kakazim-bot, ou o
     # Caíque nunca entrou numa call desde que o bot ligou) - ver
     # discord_status.py. Indicador ainda não validado numa live de verdade.
@@ -92,6 +98,11 @@ def _transmitir(mensagem):
 def _atualizar_stats(plataforma, parcial):
     with _lock:
         _estado[plataforma].update(parcial)
+        # Qualquer update bem-sucedido de kick/twitch renova o carimbo de
+        # sincronizacao (ver comentario em _estado). discord fica de fora -
+        # tem o proprio indicador (data-mutado), sem "atualizado ha Xs".
+        if plataforma in ("kick", "twitch"):
+            _estado[plataforma]["atualizadoEm"] = int(time.time() * 1000)
         copia = dict(_estado[plataforma])
     _transmitir({"tipo": "stats", "plataforma": plataforma, "dados": copia})
 

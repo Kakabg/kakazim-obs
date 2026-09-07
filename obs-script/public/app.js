@@ -2,6 +2,15 @@ const MAX_ITENS_TELA_CHAT = 60;
 const LIMIAR_SCROLL_PX = 80;
 const INTERVALO_ATUALIZACAO_TEMPO_MS = 30000;
 
+// Indicador de sincronização por plataforma (bolinha + "atualizado há Xs").
+// O backend (hub.py) renova plataforma.atualizadoEm a cada poll/evento
+// bem-sucedido; o poll de viewers roda a cada 15s e, em falha, faz backoff
+// pra 45s. Então: até 30s = normal (verde), 30-60s = atrasando (amarelo),
+// >60s ou sem carimbo = travado/desconectado (vermelho).
+const SYNC_VERDE_MAX_MS = 30000;
+const SYNC_AMARELO_MAX_MS = 60000;
+const INTERVALO_CHECK_SYNC_MS = 2000;
+
 function formatarNumero(valor) {
   return valor == null ? '—' : Number(valor).toLocaleString('pt-BR');
 }
@@ -131,6 +140,40 @@ function atualizarCard(plataforma, dados) {
     if (campo in dados) {
       card.querySelector(`[data-campo="${campo}"]`).textContent = formatarNumero(dados[campo]);
     }
+  }
+  if ('atualizadoEm' in dados && dados.atualizadoEm != null) {
+    card.dataset.atualizadoEm = String(dados.atualizadoEm);
+    atualizarIndicadorSyncDoCard(card); // reflete na hora, sem esperar o tick
+  }
+}
+
+// Bolinha verde/amarela/vermelha + "atualizado há Xs" de um card de
+// plataforma, a partir de card.dataset.atualizadoEm (carimbado pelo backend
+// a cada sync bem-sucedido). Sem carimbo ainda = "sem dados" / vermelho.
+function atualizarIndicadorSyncDoCard(card) {
+  const indicador = card.querySelector('.sync-status');
+  if (!indicador) return;
+
+  const carimbo = Number(card.dataset.atualizadoEm);
+  if (!Number.isFinite(carimbo) || carimbo <= 0) {
+    indicador.dataset.estado = 'desconhecido';
+    indicador.querySelector('.sync-texto').textContent = 'sem dados';
+    return;
+  }
+
+  const idadeMs = Date.now() - carimbo;
+  const estado = idadeMs <= SYNC_VERDE_MAX_MS ? 'verde' : idadeMs <= SYNC_AMARELO_MAX_MS ? 'amarelo' : 'vermelho';
+  indicador.dataset.estado = estado;
+
+  const seg = Math.max(0, Math.round(idadeMs / 1000));
+  indicador.querySelector('.sync-texto').textContent =
+    seg < 60 ? `atualizado há ${seg}s` : `atualizado há ${Math.floor(seg / 60)}min`;
+}
+
+function atualizarIndicadoresSync() {
+  for (const plataforma of ['kick', 'twitch']) {
+    const card = document.getElementById(`card-${plataforma}`);
+    if (card) atualizarIndicadorSyncDoCard(card);
   }
 }
 
@@ -518,6 +561,9 @@ function configurarDivisoriaResizavel() {
 
 document.getElementById('lista-atividades').addEventListener('scroll', aoRolarListaAtividades);
 setInterval(atualizarTemposRelativos, INTERVALO_ATUALIZACAO_TEMPO_MS);
+// Reavalia as bolinhas de sync mesmo sem chegar mensagem nova - é assim que
+// o indicador "envelhece" pra amarelo/vermelho quando o backend trava.
+setInterval(atualizarIndicadoresSync, INTERVALO_CHECK_SYNC_MS);
 configurarEnvioChat();
 configurarDivisoriaResizavel();
 conectar();
