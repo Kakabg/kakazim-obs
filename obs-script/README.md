@@ -295,8 +295,13 @@ Com o script selecionado na lista, os campos aparecem à direita:
 
 Depois de preencher tudo, clique em **"🔗 Autorizar Twitch (abre no
 navegador)"** uma vez (ver próxima seção sobre criar o app da Twitch antes
-disso) - essa é a sua conta principal, só usada pra leitura/estatísticas
-(viewers, seguidores, inscritos, feed de chat).
+disso) - essa é a sua conta principal, usada pra leitura/estatísticas
+(viewers, seguidores, inscritos, feed de chat) e pra disparar raid (botão
+"Raid" na seção Automações do painel - digite o canal e clique; a Twitch só
+enfileira o raid e abre uma contagem de 90s no seu chat pra confirmar, não
+executa na hora). Se você já tinha autorizado essa conta antes do botão
+"Raid" existir, clique em "🔗 Autorizar Twitch" de novo pra ganhar o escopo
+novo (`channel:manage:raids`) - não precisa desfazer nada antes.
 
 Em seguida clique também em **"🤖 Autorizar Twitch (bot, abre no
 navegador)"** - essa é a conta separada (ex: `kakazimbot`) que efetivamente

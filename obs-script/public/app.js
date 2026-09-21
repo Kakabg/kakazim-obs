@@ -482,6 +482,46 @@ function configurarEnvioChat() {
   });
 }
 
+// Botão "Raid" (dentro de Automações) - dispara POST /api/twitch/raid pro
+// canal digitado (ver kakazim_panel/http_server.py:_iniciar_raid_twitch e
+// twitch/helix.py:iniciar_raid). Isso só ENFILEIRA o raid na Twitch (abre
+// uma contagem de 90s no chat pra confirmar) - não há confirmação aqui de
+// que o raid aconteceu de fato, só de que o pedido foi aceito.
+function configurarRaid() {
+  const form = document.getElementById('form-raid');
+  const input = document.getElementById('raid-canal');
+  const status = document.getElementById('raid-status');
+
+  form.addEventListener('submit', async (evento) => {
+    evento.preventDefault();
+    const canal = input.value.trim();
+    if (!canal) return;
+
+    input.disabled = true;
+    status.dataset.erro = 'false';
+    status.textContent = 'Disparando raid…';
+
+    try {
+      const resposta = await fetch('/api/twitch/raid', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: canal }),
+      });
+      const corpo = await resposta.json().catch(() => ({}));
+      if (!resposta.ok) throw new Error(corpo.erro || `Falha ao iniciar raid (HTTP ${resposta.status})`);
+
+      status.dataset.erro = 'false';
+      status.textContent = `Raid pra ${corpo.canal} enfileirado - confirme no chat da Twitch.`;
+      input.value = '';
+    } catch (erro) {
+      status.dataset.erro = 'true';
+      status.textContent = erro.message || String(erro);
+    } finally {
+      input.disabled = false;
+    }
+  });
+}
+
 // Divisória arrastável entre Chat e Atividade recente - a proporção muda ao
 // vivo via --largura-chat (percentual, ver .painel em style.css), então um
 // painel cresce EXATAMENTE na proporção que o outro encolhe (mesma faixa de
@@ -565,5 +605,6 @@ setInterval(atualizarTemposRelativos, INTERVALO_ATUALIZACAO_TEMPO_MS);
 // o indicador "envelhece" pra amarelo/vermelho quando o backend trava.
 setInterval(atualizarIndicadoresSync, INTERVALO_CHECK_SYNC_MS);
 configurarEnvioChat();
+configurarRaid();
 configurarDivisoriaResizavel();
 conectar();

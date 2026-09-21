@@ -23,10 +23,16 @@ AUTORIZACAO_URL = "https://id.twitch.tv/oauth2/authorize"
 TOKEN_URL = "https://id.twitch.tv/oauth2/token"
 USERS_URL = "https://api.twitch.tv/helix/users"
 
-# Streamer: so leitura/stats, no mesmo canal - nao precisa mais de
-# user:write:chat desde que o envio de mensagem passou pra conta bot (ver
-# helix.enviar_mensagem_chat).
-ESCOPOS_STREAMER = "channel:read:subscriptions moderator:read:followers user:read:chat"
+# Streamer: leitura/stats + disparar raid, no mesmo canal - nao precisa mais
+# de user:write:chat desde que o envio de mensagem passou pra conta bot (ver
+# helix.enviar_mensagem_chat). channel:manage:raids e exigido pelo Start a
+# Raid (POST /helix/raids, ver helix.iniciar_raid) - a Helix so aceita
+# from_broadcaster_id igual ao dono do token, entao tem que ser este token
+# (o da propria conta principal), nunca o do bot. Quem ja autorizou antes
+# desse escopo existir precisa clicar em "Autorizar Twitch" nas
+# configuracoes do script de novo pra ganhar o raid (consentimento
+# incremental da Twitch - nao precisa revogar o token anterior antes).
+ESCOPOS_STREAMER = "channel:read:subscriptions moderator:read:followers user:read:chat channel:manage:raids"
 
 # Bot: conta separada (kakazimbot). user:write:chat manda a mensagem com o
 # User Access Token da propria conta bot (nao precisa ser moderadora do
