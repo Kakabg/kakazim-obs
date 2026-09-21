@@ -56,7 +56,7 @@ def script_description():
         "<p>Sobe um servidor local com estatísticas, feed de atividade e chat "
         "unificado de Kick + Twitch, pra usar como Browser Source no OBS.</p>"
         "<p>Preencha as credenciais abaixo, aplique, clique em "
-        '"Autorizar Twitch" (conta principal, leitura/stats/raid) e em '
+        '"Autorizar Twitch" (conta principal, leitura/stats) e em '
         '"Autorizar Twitch (bot)" (conta separada que manda mensagem no chat) '
         "uma vez cada e depois adicione "
         "<code>http://localhost:&lt;porta&gt;</code> como Browser Source.</p>"

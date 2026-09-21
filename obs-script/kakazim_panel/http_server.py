@@ -125,8 +125,6 @@ class Handler(BaseHTTPRequestHandler):
             self._repetir_atividade()
         elif caminho == "/api/atividades/repetir-ultimo-sub-follow":
             self._repetir_ultimo_sub_follow()
-        elif caminho == "/api/twitch/raid":
-            self._iniciar_raid_twitch()
         elif correspondencia_automacao:
             self._reportar_status_automacao(correspondencia_automacao.group(1))
         else:
@@ -425,32 +423,6 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         self._responder_json({"ok": True})
-
-    # Botão "Raid" do painel (ver public/index.html) - só ENFILEIRA o raid
-    # (Start a Raid da Helix): a Twitch abre uma contagem de 90s no chat do
-    # próprio canal pra confirmar, não executa na hora. Não confirma que o
-    # raid aconteceu de fato (exigiria EventSub channel.raid) - disparar o
-    # pedido já é o suficiente aqui (ver twitch/helix.py:iniciar_raid).
-    def _iniciar_raid_twitch(self):
-        tamanho = int(self.headers.get("Content-Length", 0) or 0)
-        bruto = self.rfile.read(tamanho) if tamanho else b""
-
-        try:
-            corpo = json.loads(bruto or b"{}")
-            canal = (corpo.get("channel") or "").strip()
-            if not canal:
-                raise ValueError("canal vazio")
-        except (TypeError, ValueError, json.JSONDecodeError):
-            self._responder_json({"erro": 'Envie { "channel": "<login da Twitch>" }.'}, status=400)
-            return
-
-        try:
-            resultado = twitch_helix.iniciar_raid(canal)
-        except Exception as erro:
-            self._responder_json({"erro": str(erro)}, status=502)
-            return
-
-        self._responder_json({"ok": True, **resultado})
 
     # --- helpers de resposta ---
 

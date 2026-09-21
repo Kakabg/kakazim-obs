@@ -1,8 +1,6 @@
 """Porta de server/twitch/helix.js - polling REST (viewers, seguidores,
 inscritos)."""
 
-import json
-
 from .. import config, store
 from ..http_util import ErroHttp, montar_url, requisitar
 from .oauth import obter_access_token_valido
@@ -116,63 +114,3 @@ def enviar_mensagem_chat(mensagem, canal=None):
                 f"se o kakazimbot está banido/bloqueado especificamente nele."
             ) from erro
         raise RuntimeError(f"Falha ao enviar mensagem no chat da Twitch ({erro.status}): {erro.corpo}") from erro
-
-
-def _mensagem_erro_helix(corpo_bruto):
-    """Extrai o campo "message" do corpo de erro da Helix (JSON), se der -
-    senão devolve o texto cru. Mesmo padrão usado em device_auth_pessoal.py."""
-    try:
-        return json.loads(corpo_bruto).get("message") or corpo_bruto
-    except (TypeError, ValueError):
-        return corpo_bruto or "erro desconhecido"
-
-
-def iniciar_raid(login_canal):
-    """Inicia um raid pro canal `login_canal` (Start a Raid, POST
-    /helix/raids) - usa o token "streamer" (conta principal), o unico que
-    pode ter from_broadcaster_id igual ao proprio dono do token (a Helix
-    recusa um from_broadcaster_id que nao seja o do token, entao o kakazimbot
-    nunca serviria aqui). Precisa do escopo channel:manage:raids (ver
-    ESCOPOS_STREAMER em twitch/oauth.py).
-
-    Isso so ENFILEIRA o raid - a Twitch abre uma contagem de 90s no chat do
-    canal de origem pra confirmar (ou a pessoa aperta "Raid Now" manual, ou
-    /raidcancel pra desistir). Nao confirma que o raid aconteceu de fato -
-    isso exigiria assinar o EventSub channel.raid, fora do escopo daqui.
-    """
-    canal = (login_canal or "").strip().lstrip("@").lower()
-    if not canal:
-        raise RuntimeError("Digite o nome do canal.")
-
-    destino = buscar_usuario_por_login(canal)
-    from_id = broadcaster_user_id()
-    to_id = destino["id"]
-
-    if to_id == from_id:
-        raise RuntimeError("Não dá pra raidar o próprio canal.")
-
-    access_token = obter_access_token_valido()
-    headers = {
-        "Authorization": f"Bearer {access_token}",
-        "Client-Id": config.obter("twitch_client_id"),
-    }
-    url = montar_url(f"{HELIX_BASE}/raids", {"from_broadcaster_id": from_id, "to_broadcaster_id": to_id})
-
-    try:
-        corpo = requisitar(url, method="POST", headers=headers)
-    except ErroHttp as erro:
-        if erro.status == 401:
-            raise RuntimeError(
-                'Token sem o escopo channel:manage:raids (ou expirado) - reautorize clicando em "🔗 Autorizar '
-                f'Twitch" nas configurações do script ({erro.status}): {_mensagem_erro_helix(erro.corpo)}'
-            ) from erro
-        if erro.status == 429:
-            raise RuntimeError(
-                "Limite de raids da Twitch atingido (10 a cada 10 minutos) - espera um pouco e tenta de novo."
-            ) from erro
-        if erro.status == 400:
-            raise RuntimeError(f"Twitch recusou o raid: {_mensagem_erro_helix(erro.corpo)}") from erro
-        raise RuntimeError(f"Falha ao iniciar raid na Twitch ({erro.status}): {_mensagem_erro_helix(erro.corpo)}") from erro
-
-    dados = ((corpo or {}).get("data") or [{}])[0]
-    return {"canal": destino.get("display_name") or canal, "criadoEm": dados.get("created_at")}
