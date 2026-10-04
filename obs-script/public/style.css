@@ -336,7 +336,14 @@ body {
 
 .lista--feed[hidden] { display: none; }
 
-.sub-estimativa { font-style: italic; }
+/* Dias até vencer na aba Subs: cor da plataforma no normal; amarelo com
+   <= 7 dias e vermelho com <= 3 vêm por cima (ver criarDiasSub em app.js). */
+.sub-dias { font-variant-numeric: tabular-nums; font-weight: 600; }
+.sub-dias.kick { color: var(--kick); }
+.sub-dias.twitch { color: var(--twitch); }
+.sub-dias.aviso { color: var(--amarelo); }
+.sub-dias.urgente { color: var(--vermelho); }
+.sub-dias.sem-data { color: var(--texto-fraco); font-weight: 400; }
 
 /* --- Caixa de envio de mensagem do Chat --- */
 

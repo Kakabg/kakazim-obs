@@ -569,18 +569,39 @@ let subsCache = null;
 let subsCarregadoEm = 0;
 let subsCarregando = false;
 
-function textoVencimento(item) {
-  if (!item.expiraEm) return item.plataforma === 'twitch' ? 'sem data (Twitch não informa)' : 'sem data';
+// Dias até vencer, curto: "19d" (data oficial, Kick) ou "~31d" (estimativa,
+// Twitch). Já vencido = "0d"; sem data = "sem data". A data completa fica no
+// tooltip. Cor: da plataforma no normal, amarela com <= 7 dias, vermelha
+// com <= 3 (ver .sub-dias em style.css).
+const DIAS_AVISO_SUB = 7;
+const DIAS_URGENTE_SUB = 3;
+
+function criarDiasSub(item) {
+  const span = document.createElement('span');
+  span.className = `item-tempo sub-dias ${item.plataforma}`;
+
+  if (!item.expiraEm) {
+    span.classList.add('sem-data');
+    span.textContent = 'sem data';
+    span.title = item.plataforma === 'twitch' ? 'A Twitch não informa a data de renovação.' : 'Sem data de vencimento.';
+    return span;
+  }
+
   const ms = new Date(item.expiraEm).getTime();
-  const dias = Math.ceil((ms - Date.now()) / 86400000);
+  const dias = Math.max(0, Math.ceil((ms - Date.now()) / 86400000));
+  // Já vencido é "0d" seco, sem o til de estimativa.
+  span.textContent = `${item.estimativa && dias > 0 ? '~' : ''}${dias}d`;
+  if (dias <= DIAS_URGENTE_SUB) span.classList.add('urgente');
+  else if (dias <= DIAS_AVISO_SUB) span.classList.add('aviso');
+
   const data = new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-  const quando = dias <= 0 ? 'vence hoje' : dias === 1 ? 'vence amanhã' : `vence em ${dias} dias`;
-  return `${quando} · ${data}${item.estimativa ? ' (estimado)' : ''}`;
+  span.title = item.estimativa ? `${data} (estimativa - a Twitch não informa a data)` : data;
+  return span;
 }
 
 function criarItemSub(item) {
   const li = document.createElement('li');
-  li.appendChild(iconeMini(item.plataforma, { sub: true }));
+  li.appendChild(iconeMini(item.plataforma));
   if (item.nome) {
     li.appendChild(criarNomeUsuario({ plataforma: item.plataforma, usuario: item.nome }));
   } else {
@@ -591,19 +612,14 @@ function criarItemSub(item) {
     li.appendChild(semNome);
   }
 
-  const extras = [item.tier, item.gift ? 'gift' : null].filter(Boolean).join(' · ');
-  if (extras) {
-    const detalhe = document.createElement('span');
-    detalhe.className = 'item-detalhe';
-    detalhe.textContent = extras;
-    li.appendChild(detalhe);
+  if (item.gift) {
+    const gift = document.createElement('span');
+    gift.className = 'item-detalhe';
+    gift.textContent = 'gift';
+    li.appendChild(gift);
   }
 
-  const vencimento = document.createElement('span');
-  vencimento.className = `item-tempo${item.estimativa ? ' sub-estimativa' : ''}`;
-  vencimento.textContent = textoVencimento(item);
-  if (item.estimativa) vencimento.title = 'Estimativa: a Twitch não informa a data de renovação.';
-  li.appendChild(vencimento);
+  li.appendChild(criarDiasSub(item));
   return li;
 }
 
