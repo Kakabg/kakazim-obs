@@ -76,8 +76,12 @@
     <div class="divisoria-resizavel" id="divisoria-chat-feed" role="separator" aria-orientation="vertical" aria-label="Redimensionar Chat e Atividade recente" tabindex="0"></div>
 
     <section class="coluna coluna--feed">
-      <h3>Atividade recente</h3>
-      <ul class="lista lista--feed" id="lista-atividades"></ul>
+      <div class="coluna-cabecalho abas-feed" role="tablist" aria-label="Conteúdo do card">
+        <button type="button" class="aba-feed ativa" id="aba-atividade" role="tab" aria-selected="true" aria-controls="lista-atividades">Atividade recente</button>
+        <button type="button" class="aba-feed" id="aba-subs" role="tab" aria-selected="false" aria-controls="lista-subs">Subs</button>
+      </div>
+      <ul class="lista lista--feed" id="lista-atividades" role="tabpanel" aria-labelledby="aba-atividade"></ul>
+      <ul class="lista lista--feed" id="lista-subs" role="tabpanel" aria-labelledby="aba-subs" hidden></ul>
     </section>
 
     <section class="automacoes">

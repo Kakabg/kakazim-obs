@@ -559,6 +559,113 @@ function configurarDivisoriaResizavel() {
   });
 }
 
+// --- Aba "Subs" do card de atividade ---
+// Busca GET /api/subs só quando a aba é aberta (nada de polling) - e reusa a
+// última resposta por CACHE_SUBS_MS antes de pedir de novo (o backend também
+// guarda ~5 min, ver kakazim_panel/subs.py). Twitch: lista oficial da Helix,
+// vencimento é ESTIMATIVA do kakazim-bot; Kick: vencimento oficial do webhook.
+const CACHE_SUBS_MS = 5 * 60 * 1000;
+let subsCache = null;
+let subsCarregadoEm = 0;
+let subsCarregando = false;
+
+function textoVencimento(item) {
+  if (!item.expiraEm) return item.plataforma === 'twitch' ? 'sem data (Twitch não informa)' : 'sem data';
+  const ms = new Date(item.expiraEm).getTime();
+  const dias = Math.ceil((ms - Date.now()) / 86400000);
+  const data = new Date(ms).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+  const quando = dias <= 0 ? 'vence hoje' : dias === 1 ? 'vence amanhã' : `vence em ${dias} dias`;
+  return `${quando} · ${data}${item.estimativa ? ' (estimado)' : ''}`;
+}
+
+function criarItemSub(item) {
+  const li = document.createElement('li');
+  li.appendChild(iconeMini(item.plataforma, { sub: true }));
+  if (item.nome) {
+    li.appendChild(criarNomeUsuario({ plataforma: item.plataforma, usuario: item.nome }));
+  } else {
+    // Sub da Kick sem perfil no Kakaverso - só o id, sem link de perfil.
+    const semNome = document.createElement('span');
+    semNome.className = 'item-usuario';
+    semNome.textContent = `Kick #${item.kickUserId ?? '?'}`;
+    li.appendChild(semNome);
+  }
+
+  const extras = [item.tier, item.gift ? 'gift' : null].filter(Boolean).join(' · ');
+  if (extras) {
+    const detalhe = document.createElement('span');
+    detalhe.className = 'item-detalhe';
+    detalhe.textContent = extras;
+    li.appendChild(detalhe);
+  }
+
+  const vencimento = document.createElement('span');
+  vencimento.className = `item-tempo${item.estimativa ? ' sub-estimativa' : ''}`;
+  vencimento.textContent = textoVencimento(item);
+  if (item.estimativa) vencimento.title = 'Estimativa: a Twitch não informa a data de renovação.';
+  li.appendChild(vencimento);
+  return li;
+}
+
+function renderizarSubs(dados) {
+  const lista = document.getElementById('lista-subs');
+  lista.replaceChildren();
+  for (const aviso of dados.avisos || []) {
+    const li = document.createElement('li');
+    li.className = 'item-vazio';
+    li.textContent = `Aviso - ${aviso}`;
+    lista.appendChild(li);
+  }
+  if (!dados.subs?.length) {
+    const li = document.createElement('li');
+    li.className = 'item-vazio';
+    li.textContent = 'Nenhum sub ativo.';
+    lista.appendChild(li);
+    return;
+  }
+  for (const item of dados.subs) lista.appendChild(criarItemSub(item));
+}
+
+async function carregarSubs() {
+  if (subsCarregando) return;
+  if (subsCache && Date.now() - subsCarregadoEm < CACHE_SUBS_MS) {
+    renderizarSubs(subsCache);
+    return;
+  }
+  const lista = document.getElementById('lista-subs');
+  if (!subsCache) lista.innerHTML = '<li class="item-vazio">Carregando subs...</li>';
+  subsCarregando = true;
+  try {
+    const resposta = await fetch('/api/subs');
+    if (!resposta.ok) throw new Error(`HTTP ${resposta.status}`);
+    subsCache = await resposta.json();
+    subsCarregadoEm = Date.now();
+    renderizarSubs(subsCache);
+  } catch (erro) {
+    if (!subsCache) lista.innerHTML = `<li class="item-vazio">Falha ao carregar subs (${erro.message}).</li>`;
+  } finally {
+    subsCarregando = false;
+  }
+}
+
+function configurarAbasFeed() {
+  const abas = { atividade: document.getElementById('aba-atividade'), subs: document.getElementById('aba-subs') };
+  const paineis = { atividade: document.getElementById('lista-atividades'), subs: document.getElementById('lista-subs') };
+
+  function ativar(nome) {
+    for (const chave of Object.keys(abas)) {
+      const ativa = chave === nome;
+      abas[chave].classList.toggle('ativa', ativa);
+      abas[chave].setAttribute('aria-selected', String(ativa));
+      paineis[chave].hidden = !ativa;
+    }
+    if (nome === 'subs') carregarSubs();
+  }
+
+  abas.atividade.addEventListener('click', () => ativar('atividade'));
+  abas.subs.addEventListener('click', () => ativar('subs'));
+}
+
 document.getElementById('lista-atividades').addEventListener('scroll', aoRolarListaAtividades);
 setInterval(atualizarTemposRelativos, INTERVALO_ATUALIZACAO_TEMPO_MS);
 // Reavalia as bolinhas de sync mesmo sem chegar mensagem nova - é assim que
@@ -566,4 +673,5 @@ setInterval(atualizarTemposRelativos, INTERVALO_ATUALIZACAO_TEMPO_MS);
 setInterval(atualizarIndicadoresSync, INTERVALO_CHECK_SYNC_MS);
 configurarEnvioChat();
 configurarDivisoriaResizavel();
+configurarAbasFeed();
 conectar();

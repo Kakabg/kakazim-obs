@@ -304,6 +304,40 @@ body {
   font-family: inherit;
 }
 
+/* --- Abas do card de atividade (Atividade recente / Subs) --- */
+
+.abas-feed {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.aba-feed {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 0 0 2px;
+  font: inherit;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+  cursor: pointer;
+}
+
+.aba-feed.ativa {
+  color: var(--texto);
+  border-bottom-color: var(--texto-fraco);
+}
+
+.aba-feed:focus-visible {
+  outline: 1px solid var(--texto-fraco);
+  outline-offset: 2px;
+}
+
+.lista--feed[hidden] { display: none; }
+
+.sub-estimativa { font-style: italic; }
+
 /* --- Caixa de envio de mensagem do Chat --- */
 
 .form-chat {

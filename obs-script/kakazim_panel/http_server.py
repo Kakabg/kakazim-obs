@@ -17,7 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import config, hub, store, streamelements
+from . import config, hub, store, streamelements, subs
 from .kick import chat as kick_chat
 from .kick import oauth_pessoal as kick_oauth_pessoal
 from .twitch import chat_pessoal as twitch_chat_pessoal
@@ -87,6 +87,10 @@ class Handler(BaseHTTPRequestHandler):
             self._listar_historico(store.listar_atividades_pagina, parse_qs(partes.query))
         elif caminho == "/api/chat":
             self._listar_historico(store.listar_chat_pagina, parse_qs(partes.query))
+        elif caminho == "/api/subs":
+            # Aba "Subs" do card de atividade - só quando a aba é aberta, cache
+            # de ~5 min no próprio subs.py (?forcar=1 ignora o cache).
+            self._responder_json(subs.buscar(forcar="forcar" in parse_qs(partes.query)))
         elif caminho == "/twitch/login":
             self._twitch_login(parse_qs(partes.query))
         elif caminho == "/twitch/callback":
