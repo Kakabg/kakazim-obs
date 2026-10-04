@@ -4,9 +4,9 @@ Junta duas fontes, só quando a aba é aberta (nada de polling) e com cache
 de CACHE_S segundos:
 - Twitch: lista OFICIAL de subs ativos na Helix (GET /subscriptions, token
   do streamer que o painel já tem com channel:read:subscriptions) - nome,
-  tier, gift. A Twitch não dá data de vencimento, então a data vem da
-  estimativa do kakazim-bot (perfis.twitch_assinatura_expira_em, mantida
-  pela conferência diária de subs de lá) e vai marcada como estimativa.
+  tier, gift. A Twitch não dá data de vencimento na Helix: a data vem do
+  kakazim-bot - "real" quando veio de um evento de sub/resub (data do
+  evento + 30 dias), senão estimativa da conferência diária de lá.
 - Kick: não existe endpoint de subs na Kick - vem do kakazim-bot
   (GET /painel/subs), com o vencimento oficial dos webhooks (expires_at).
 
@@ -53,18 +53,25 @@ def _dados_do_bot():
 def montar_lista(subs_twitch, dados_bot):
     """Pura (sem rede) - junta as duas fontes e ordena do que vence primeiro.
     Sem data (Twitch sem estimativa nenhuma) vai pro fim."""
-    estimativas = (dados_bot or {}).get("twitchEstimativas") or {}
+    vencimentos = (dados_bot or {}).get("twitchVencimentos")
+    if vencimentos is None:
+        # kakazim-bot antigo (antes de mandar real/estimado): tudo estimativa.
+        vencimentos = {
+            uid: {"expiraEm": data, "real": False}
+            for uid, data in ((dados_bot or {}).get("twitchEstimativas") or {}).items()
+        }
     itens = []
 
     for sub in subs_twitch or []:
+        venc = vencimentos.get(str(sub.get("user_id"))) or {}
         itens.append(
             {
                 "plataforma": "twitch",
                 "nome": sub.get("user_name") or sub.get("user_login"),
                 "tier": TIER_TWITCH.get(str(sub.get("tier")), sub.get("tier")),
                 "gift": bool(sub.get("is_gift")),
-                "expiraEm": estimativas.get(str(sub.get("user_id"))),
-                "estimativa": True,
+                "expiraEm": venc.get("expiraEm"),
+                "estimativa": not venc.get("real", False),
             }
         )
 
