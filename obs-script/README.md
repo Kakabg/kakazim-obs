@@ -7,7 +7,9 @@ terminal. Liga e desliga sozinho junto com o OBS.
 
 Esta pasta é auto-contida: `kakazim_obs.py` é o arquivo que você adiciona no
 OBS; tudo o resto (`kakazim_panel/`) é a lógica em Python puro, sem nenhuma
-dependência do OBS, portada 1:1 do backend Node original (`../server/`).
+dependência do OBS, portada 1:1 do backend Node original (que ficava em
+`../server/` e foi removido do repositório em 2026-10-07; continua no
+histórico do git).
 
 ## O que preserva do backend Node original
 
@@ -392,6 +394,6 @@ obs-script/
                                               # app.js ajustado pra SSE em vez de WS
 ```
 
-O backend Node original (`../server/`) continua intacto e funcional, caso
-precise dele de novo por algum motivo - essa pasta é um substituto
-independente, não uma alteração nele.
+O backend Node original (`../server/`) foi removido do repositório em
+2026-10-07: este script Python o substituiu por completo. Se precisar dele
+de novo, ele continua no histórico do git.
