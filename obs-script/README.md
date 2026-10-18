@@ -285,10 +285,9 @@ Com o script selecionado na lista, os campos aparecem à direita:
 - **Kick: URL do relay**: `https://kakazim-bot-production.up.railway.app/painel/eventos`
   (já vem preenchido por padrão).
 - **Kick: segredo do relay**: o mesmo valor de `PAINEL_RELAY_SECRET` que
-  você configurar no Railway (ver seção do `kakazim-bot` abaixo) -
-  `2c1d5ba4a3cc89d9c357d82f85819418892870b32d8cf607` (gerado hoje mais cedo,
-  nesta mesma sessão, pra versão Node do painel - reaproveite o mesmo valor
-  aqui pra não precisar reconfigurar o Railway de novo).
+  você configurar no Railway (ver seção do `kakazim-bot` abaixo). Copie o
+  valor da aba Variables do Railway - nunca escreva o segredo neste README
+  (o repositório é público).
 - **Kick: definir/resetar total de seguidores**: digite o número atual de
   seguidores da sua Kick (você mesmo confere isso na página do seu canal) e
   clique fora do campo/aplique - só precisa fazer isso uma vez.
@@ -343,8 +342,8 @@ código do `kakazim-bot` mais cedo (numa tarefa anterior desta mesma sessão).
 Confirme que:
 
 1. Fez o **redeploy** do `kakazim-bot` no Railway com essas mudanças.
-2. Configurou `PAINEL_RELAY_SECRET=2c1d5ba4a3cc89d9c357d82f85819418892870b32d8cf607`
-   nas variáveis de ambiente do projeto **no Railway** (não só no `.env`
+2. Configurou `PAINEL_RELAY_SECRET` (um valor aleatório longo, o mesmo do
+   campo "Kick: segredo do relay" no OBS) nas variáveis de ambiente do projeto **no Railway** (não só no `.env`
    local).
 3. Acessou `https://kakazim-bot-production.up.railway.app/kick/inscrever-webhook?key=<seu KICK_SETUP_SECRET>`
    uma vez, pra Kick passar a mandar os eventos novos.
