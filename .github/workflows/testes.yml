@@ -1,0 +1,37 @@
+name: Testes do Painel Live
+
+# Roda os testes do painel (obs-script/testes) sem precisar do OBS.
+# Windows = igual ao PC da live; Linux = conferência extra.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  testes:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: obs-script
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: python -m pip install -r requirements.txt
+
+      - name: Conferir que todo arquivo .py compila
+        run: python -m compileall -q kakazim_panel kakazim_obs.py testar_localmente.py
+
+      - name: Rodar testes
+        run: python -m unittest discover -s testes -t . -v
