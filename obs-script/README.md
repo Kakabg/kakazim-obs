@@ -396,3 +396,15 @@ obs-script/
 O backend Node original (`../server/`) foi removido do repositório em
 2026-10-07: este script Python o substituiu por completo. Se precisar dele
 de novo, ele continua no histórico do git.
+
+## Testes (sem precisar do OBS)
+
+Dentro da pasta `obs-script/`:
+
+```sh
+python -m unittest discover -s testes -t . -v
+```
+
+Os testes usam uma pasta temporária (não mexem no `data/` de verdade) e não
+falam com Twitch/Kick. O GitHub roda os mesmos testes sozinho a cada mudança
+(`.github/workflows/testes.yml`), no Windows e no Linux.
