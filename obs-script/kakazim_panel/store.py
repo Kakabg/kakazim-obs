@@ -76,6 +76,10 @@ _ESTADO_PADRAO = {
         # desconectado (ver kick/relay_client.py).
         "ultimoEventoRelayId": None,
     },
+    # Checklist da live (ver checklist.py): aparelho de cada fonte de
+    # microfone na primeira vez em que foi vista - nome da fonte -> device_id.
+    # Serve pra avisar se o Windows trocou o microfone de uma fonte.
+    "microfones": {},
 }
 
 _lock = threading.Lock()
@@ -229,6 +233,32 @@ def incrementar_seguidores_kick(delta=1):
 def buscar_kick():
     with _lock:
         return dict(_obter_estado()["kick"])
+
+
+def buscar_microfones_conhecidos():
+    with _lock:
+        return dict(_obter_estado().get("microfones") or {})
+
+
+def lembrar_microfones(novos):
+    """Guarda o aparelho de fontes de microfone ainda não conhecidas (não troca as já salvas)."""
+    with _lock:
+        estado = _obter_estado()
+        conhecidos = estado.setdefault("microfones", {})
+        mudou = False
+        for nome, aparelho in novos.items():
+            if nome not in conhecidos and aparelho:
+                conhecidos[nome] = aparelho
+                mudou = True
+        if mudou:
+            _salvar()
+
+
+def esquecer_microfones():
+    """Botão "o microfone mudou de propósito": o aparelho atual passa a ser o certo."""
+    with _lock:
+        _obter_estado()["microfones"] = {}
+        _salvar()
 
 
 def definir_ultimo_evento_relay_kick(id_evento):

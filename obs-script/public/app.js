@@ -74,7 +74,7 @@ function formatarTempoRelativo(timestampMs) {
 
 // Kick/Twitch mostram o ícone de marca de verdade via mask-image em CSS (ver
 // style.css) - sem letra. StreamElements continua no monograma de letra.
-const LETRA_POR_PLATAFORMA = { streamelements: '$' };
+const LETRA_POR_PLATAFORMA = { streamelements: '$', livepix: 'L' };
 
 function iconeMini(plataforma, { sub = false } = {}) {
   const span = document.createElement('span');
@@ -256,7 +256,8 @@ function criarItemAtividade(item) {
   tempo.textContent = formatarTempoRelativo(item.timestamp);
   li.appendChild(tempo);
 
-  li.appendChild(botaoRepetirAtividade(item));
+  // O alerta da LivePix se repete pelo botão "Repetir alerta LivePix" do Stream Deck.
+  if (item.plataforma !== 'livepix') li.appendChild(botaoRepetirAtividade(item));
 
   return li;
 }
@@ -362,6 +363,31 @@ const ROTULOS_AUTOMACAO = {
   'cs2-scene-switcher': 'CS-Auto',
 };
 
+// Checklist antes da live (kakazim_panel/checklist.py): um chip por item,
+// verde (ok), vermelho (problema) ou cinza (sem dado ainda). Passar o mouse
+// mostra a explicação. "Microfone trocou de aparelho" aceita o novo no clique.
+function atualizarChecklist(itens) {
+  const lista = document.getElementById('lista-checklist');
+  if (!lista) return;
+  lista.innerHTML = '';
+  for (const item of itens || []) {
+    const chip = document.createElement('li');
+    chip.className = 'chip-automacao';
+    chip.dataset.ligado = item.ok === null ? 'desconhecido' : String(item.ok);
+    chip.title = item.dica || '';
+    chip.innerHTML = '<span class="bolinha"></span><span class="rotulo"></span>';
+    chip.querySelector('.rotulo').textContent = item.texto;
+    if (item.texto === 'Microfone trocou de aparelho') {
+      chip.classList.add('chip-clicavel');
+      chip.addEventListener('click', async () => {
+        if (!confirm('O microfone novo é o certo? Ele passa a ser o esperado.')) return;
+        await fetch('/api/checklist/aceitar-microfone', { method: 'POST' });
+      });
+    }
+    lista.appendChild(chip);
+  }
+}
+
 function atualizarAutomacao(nome, dados) {
   const lista = document.getElementById('lista-automacoes');
   let chip = lista.querySelector(`[data-nome="${nome}"]`);
@@ -409,6 +435,7 @@ function renderizarSnapshot(estado) {
   }
 
   for (const [nome, dados] of Object.entries(estado.automacoes)) atualizarAutomacao(nome, dados);
+  atualizarChecklist(estado.checklist);
 }
 
 // Backend Python (script de OBS) usa SSE em vez de WebSocket - servidor HTTP
@@ -428,6 +455,7 @@ function conectar() {
     else if (mensagem.tipo === 'atividade') prependAtividade(mensagem.item);
     else if (mensagem.tipo === 'chat') adicionarChat(mensagem.item);
     else if (mensagem.tipo === 'automacao') atualizarAutomacao(mensagem.nome, mensagem.dados);
+    else if (mensagem.tipo === 'checklist') atualizarChecklist(mensagem.itens);
   });
 
   // EventSource já tenta reconectar sozinho, mas de forma menos previsível -
