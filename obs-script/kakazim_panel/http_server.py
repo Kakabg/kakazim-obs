@@ -129,6 +129,9 @@ class Handler(BaseHTTPRequestHandler):
             self._repetir_atividade()
         elif caminho == "/api/atividades/repetir-ultimo-sub-follow":
             self._repetir_ultimo_sub_follow()
+        elif caminho == "/api/checklist/aceitar-microfone":
+            hub.aceitar_microfone_atual()
+            self._responder_json({"ok": True})
         elif correspondencia_automacao:
             self._reportar_status_automacao(correspondencia_automacao.group(1))
         else:

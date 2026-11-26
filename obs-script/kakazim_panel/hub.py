@@ -8,7 +8,7 @@ import threading
 import time
 import uuid
 
-from . import config, discord_status, store
+from . import checklist, config, discord_status, livepix, store
 from .automations.cs2_scene_switcher import MonitorCs2SceneSwitcher
 from .kick import stats as kick_stats
 from .kick.relay_client import ClienteRelayKick
@@ -64,7 +64,15 @@ _estado = {
     "automacoes": {
         "cs2-scene-switcher": {"ligado": False},
     },
+    # Checklist antes da live (ver checklist.py) - recalculado a cada leitura
+    # das fontes de áudio do OBS e a cada resposta do kakazim-bot.
+    "checklist": [],
 }
+
+# Última leitura das fontes de áudio (None = ainda não leu) e última
+# resposta boa do kakazim-bot (epoch ms).
+_fontes_audio = None
+_bot_ok_em = None
 
 _clientes_sse = set()  # de queue.Queue
 
@@ -402,7 +410,7 @@ def _tratar_evento_kick(tipo, payload):
 # --- StreamElements ---
 # Chega pelo mesmo relay SSE da Kick (ver _ao_receber_evento_relay abaixo) -
 # o kakazim-bot manda tanto eventos da Kick quanto da StreamElements (e da
-# LivePix, hoje inerte) pelo mesmo outbox/endpoint, diferenciados pelo prefixo
+# LivePix, ver kakazim_panel/livepix.py) pelo mesmo outbox/endpoint, diferenciados pelo prefixo
 # do "tipo" ("streamelements." aqui).
 def _tratar_evento_streamelements(tipo, payload):
     if tipo == "streamelements.tip":
@@ -448,6 +456,10 @@ def _iniciar_kick():
         payload = evento.get("payload") or {}
         if isinstance(tipo, str) and tipo.startswith("streamelements."):
             _tratar_evento_streamelements(tipo, payload)
+        elif isinstance(tipo, str) and tipo.startswith("livepix."):
+            item = livepix.montar_atividade(tipo, payload)
+            if item:
+                _registrar_atividade(item)
         else:
             _tratar_evento_kick(tipo, payload)
 
@@ -476,9 +488,40 @@ def _podar_chat():
 
 
 def _atualizar_status_discord():
+    global _bot_ok_em
     resultado = discord_status.buscar_status_mute()
     if resultado is not None:
+        _bot_ok_em = int(time.time() * 1000)
         _atualizar_stats("discord", {"mutado": resultado.get("mutado")})
+    _recalcular_checklist()
+
+
+# --- checklist antes da live ---
+
+def atualizar_fontes_audio(fontes):
+    """Chamado pelo kakazim_obs.py com as fontes de microfone lidas do OBS."""
+    global _fontes_audio
+    _fontes_audio = fontes
+    store.lembrar_microfones({f["nome"]: f.get("aparelho") for f in fontes if f.get("nome") and not f.get("global")})
+    _recalcular_checklist()
+
+
+def aceitar_microfone_atual():
+    """O microfone mudou de propósito: o aparelho atual vira o certo."""
+    store.esquecer_microfones()
+    if _fontes_audio is not None:
+        atualizar_fontes_audio(_fontes_audio)
+
+
+def _recalcular_checklist():
+    with _lock:
+        estado = {"twitch": dict(_estado["twitch"]), "kick": dict(_estado["kick"])}
+    itens = checklist.avaliar(_fontes_audio, store.buscar_microfones_conhecidos(), estado, _bot_ok_em)
+    with _lock:
+        if itens == _estado["checklist"]:
+            return
+        _estado["checklist"] = itens
+    _transmitir({"tipo": "checklist", "itens": itens})
 
 
 def _iniciar_manutencao():

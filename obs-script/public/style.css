@@ -7,6 +7,7 @@
   --kick: #53fc18;
   --twitch: #9146ff;
   --streamelements: #2dd4bf;
+  --livepix: #7c3aed;
   --vermelho: #ff4757;
   --verde: #2ecc71;
   --amarelo: #f5b70a;
@@ -458,6 +459,7 @@ body {
   mask-image: url('vendor/tabler-icons/brand-twitch.svg');
 }
 .icone-plataforma-mini.streamelements { background: var(--streamelements); color: #fff; }
+.icone-plataforma-mini.livepix { background: var(--livepix); color: #fff; }
 
 /* Assinante do canal - mesmo ícone (mask-image), só troca a cor da marca
    pela prata (ver iconeMini em app.js). Depois das regras .kick/.twitch de
@@ -589,3 +591,11 @@ a.item-usuario:hover {
 
 .chip-automacao[data-ligado="true"] .bolinha { background: var(--verde); }
 .chip-automacao[data-ligado="false"] .bolinha { background: var(--vermelho); }
+.chip-automacao.chip-clicavel { cursor: pointer; }
+
+/* Rodapé: Checklist da live e Automações lado a lado (quebra se faltar espaço). */
+.faixa-rodape {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 24px;
+}

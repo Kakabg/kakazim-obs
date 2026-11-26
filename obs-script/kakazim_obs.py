@@ -33,6 +33,13 @@ from kakazim_panel.twitch import device_auth_pessoal as twitch_device_auth_pesso
 config.definir_diretorio_base(_DIRETORIO_SCRIPT)
 
 _servidor_http = ServidorHttp()
+
+# Checklist antes da live (kakazim_panel/checklist.py): tipos de fonte de
+# microfone do OBS (Windows, Mac, Linux) e de quanto em quanto tempo ler.
+_TIPOS_MICROFONE = {"wasapi_input_capture", "coreaudio_input_capture", "pulse_input_capture", "alsa_input_capture"}
+_INTERVALO_CHECKLIST_MS = 3000
+# Canais de áudio globais "Mic/Aux" (Configurações > Áudio) - 1 e 2 são o Áudio do desktop.
+_CANAIS_MIC_GLOBAL = (3, 4, 5, 6)
 _iniciado = False
 _ultimo_seed_kick_aplicado = None
 
@@ -230,6 +237,49 @@ def script_update(settings):
         _servidor_http.iniciar()
 
 
+def _dados_microfone(fonte, global_):
+    configuracao = obs.obs_source_get_settings(fonte)
+    try:
+        aparelho = obs.obs_data_get_string(configuracao, "device_id")
+    finally:
+        obs.obs_data_release(configuracao)
+    return {
+        "nome": obs.obs_source_get_name(fonte),
+        "aparelho": aparelho,
+        "mudo": bool(obs.obs_source_muted(fonte)),
+        "ativo": bool(obs.obs_source_active(fonte)) and bool(obs.obs_source_enabled(fonte)),
+        "global": global_,
+    }
+
+
+def _ler_microfones():
+    """Roda num timer do OBS (thread principal): lê as fontes de microfone e
+    entrega pro hub. Só leitura - não muda nada no OBS."""
+    try:
+        fontes = []
+        lista = obs.obs_enum_sources()
+        try:
+            for fonte in lista or []:
+                if obs.obs_source_get_unversioned_id(fonte) in _TIPOS_MICROFONE:
+                    fontes.append(_dados_microfone(fonte, False))
+        finally:
+            obs.source_list_release(lista)
+
+        for canal in _CANAIS_MIC_GLOBAL:
+            fonte = obs.obs_get_output_source(canal)
+            if fonte is None:
+                continue
+            try:
+                if obs.obs_source_get_unversioned_id(fonte) in _TIPOS_MICROFONE and obs.obs_source_enabled(fonte):
+                    fontes.append(_dados_microfone(fonte, True))
+            finally:
+                obs.obs_source_release(fonte)
+
+        hub.atualizar_fontes_audio(fontes)
+    except Exception as erro:
+        print(f"[Checklist] Falha ao ler os microfones do OBS: {erro}")
+
+
 def script_load(settings):
     global _iniciado, _ultimo_seed_kick_aplicado
 
@@ -244,12 +294,14 @@ def script_load(settings):
 
     _servidor_http.iniciar()
     hub.iniciar()
+    obs.timer_add(_ler_microfones, _INTERVALO_CHECKLIST_MS)
     _iniciado = True
 
 
 def script_unload():
     global _iniciado
     print("[Painel] Desligando (script_unload)...")
+    obs.timer_remove(_ler_microfones)
     hub.parar()
     _servidor_http.parar()
     _iniciado = False
